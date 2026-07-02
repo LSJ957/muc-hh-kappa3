@@ -81,9 +81,9 @@ PY "$HERE/src/05_train_ml2.py" --config "$CFG" 2>&1 | tee "$HERE/logs/${STAGE}_0
 say "06   ML analysis (history, FI, correlation)"
 PY "$HERE/src/06_ml_analysis.py" --config "$CFG" 2>&1 | tee "$HERE/logs/${STAGE}_06_analysis.log"
 
-# 7) DLL morphing
-say "07   DLL morphing + per-κ table"
-PY "$HERE/src/07_dll_morphing.py" --config "$CFG" 2>&1 | tee "$HERE/logs/${STAGE}_07_dll.log"
+# 7) DLL scan + CL extraction
+say "07   DLL scan + poly4 CL intervals"
+PY "$HERE/src/07_dll_scan.py" --config "$CFG" 2>&1 | tee "$HERE/logs/${STAGE}_07_dll.log"
 
 # 8) DLL plots
 say "08   DLL plots"

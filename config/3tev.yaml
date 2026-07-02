@@ -118,7 +118,7 @@ dll:
   # PRIORITY ORDER (first listed wins when multiple sources share a κ value):
   # kappa_indep first: at κ∈{0.4,1.0,1.6} the templates and the κ=1 reference
   # come from a sample independent of the classifier training; else kappa_scan_main
-  morph_sources:  [kappa_indep, kappa_scan_main]
+  template_sources:  [kappa_indep, kappa_scan_main]
   anchor:
     source: kappa_indep
     kappa:  1.0

@@ -89,7 +89,7 @@ inputs:
     is_signal:        true
 
   # High-statistics 500k samples in [0.80, 1.20] at 0.04 spacing (≈5× existing).
-  # Used in addition to kappa_scan_main for DLL morphing (07).
+  # Used in addition to kappa_scan_main for the DLL templates (07).
   kappa_scan_500k:
     h5: data/10tev/kappa_scan_500k.h5
     n_gen_per_kappa: 500000
@@ -126,7 +126,11 @@ dll:
   # kappa_indep first → independent-sample templates at κ∈{0.4,1.0,1.6} and the κ=1 reference
   # 500k second → high-stat templates at κ∈[0.80,1.20]∩0.04-grid
   # main last → fallback for κ values not covered by the above
-  morph_sources:  [kappa_indep, kappa_scan_500k, kappa_scan_main]
+  template_sources:  [kappa_indep, kappa_scan_500k, kappa_scan_main]
+  # Restrict the fourth-order polynomial fit to the refined grid around the
+  # likelihood well; the coarser points outside are scanned and plotted but
+  # do not enter the fit.
+  fit_window: [0.8, 1.2]
   anchor:
     source: kappa_indep
     kappa:  1.0

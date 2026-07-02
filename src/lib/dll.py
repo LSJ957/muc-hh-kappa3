@@ -5,14 +5,10 @@ multiple disjoint <0.5 regions (that was the latent bug in `lib.py:extract_w68`
 of the old codebase). Always use the connected interval containing the
 global minimum.
 
-Two entry points, one per DLL-curve type:
-  • `poly4_w68(k, dll)` — 4th-order polyfit then connected width, for a SPARSE
-                          per-κ scatter (raw per-κ Asimov points).  This is the
-                          extractor behind the paper's headline w68 numbers.
-  • `connected_w68_on_fine(kfine, dllB, fit_range)` — already-smooth DLL curve
-                                      (e.g. from per-bin quadratic morphing,
-                                      07_dll_morphing); reads the connected
-                                      width on the fine grid directly.
+Entry point:
+  • `poly4_w68(k, dll)` — 4th-order polyfit then connected width, for the
+                          sparse per-κ scan (raw per-κ Asimov points).  This
+                          is the extractor behind the paper's headline w68.
 
 Both honour the same convention: shift = min(DLL inside fit_range), threshold
 0.5, connected region containing the in-range argmin.
@@ -141,55 +137,4 @@ def poly4_w68(
         poly_coef=poly.tolist(),
         poly_min_raw=poly_min_raw,
         touches_boundary=bool(lo == 0 or hi == len(mask) - 1),
-    )
-
-
-def connected_w68_on_fine(kfine: np.ndarray, dllB: np.ndarray,
-                          fit_range: tuple[float, float]) -> dict:
-    """Extract the connected-region w68 from an already-smooth fine-grid DLL
-    curve (e.g. the morphed Asimov DLL output of 07).  Does NOT do an extra
-    polyfit — assumes `dllB` is already a smooth function of κ (per-bin
-    quadratic morphing then Asimov).
-
-    The reference minimum is taken INSIDE `fit_range` (the user-chosen κ
-    interval, typically [0.2, 1.8]).  The connected <0.5 region is expanded
-    from that in-range argmin both directions; expansion is restricted to
-    `fit_range` so the well never bleeds out at κ < fit_range[0] or κ >
-    fit_range[1] even if dllB happens to dip below the in-range minimum
-    outside the requested range (a corner case that biased the previous
-    inline implementation in 07).
-
-    Returns
-    -------
-    dict with: w68_connected, k3_lo, k3_hi, k3_min, dll_min_inrange,
-    touches_boundary (True → the connected region hits the edge of fit_range,
-    so the returned width is a lower bound).
-    """
-    kfine = np.asarray(kfine, dtype=np.float64)
-    dllB  = np.asarray(dllB,  dtype=np.float64)
-    if kfine.shape != dllB.shape:
-        raise ValueError(f'shape mismatch: kfine {kfine.shape} vs dllB {dllB.shape}')
-
-    lo, hi = float(fit_range[0]), float(fit_range[1])
-    in_range = (kfine >= lo - 1e-9) & (kfine <= hi + 1e-9)
-    if not in_range.any():
-        raise ValueError(f'no kfine points inside fit_range [{lo}, {hi}]')
-
-    dll_min = float(dllB[in_range].min())
-    sh = dllB - dll_min
-    below = (sh < 0.5) & in_range            # restrict expansion to fit_range
-
-    i0_rel = int(np.argmin(dllB[in_range]))
-    i0 = int(np.where(in_range)[0][0]) + i0_rel
-    a = b = i0
-    while a > 0           and below[a-1]: a -= 1
-    while b < len(below)-1 and below[b+1]: b += 1
-    _in_idx = np.where(in_range)[0]
-    return dict(
-        w68_connected = float(kfine[b] - kfine[a]),
-        k3_lo         = float(kfine[a]),
-        k3_hi         = float(kfine[b]),
-        k3_min        = float(kfine[i0]),
-        dll_min_inrange = dll_min,
-        touches_boundary = bool(a <= int(_in_idx[0]) or b >= int(_in_idx[-1])),
     )

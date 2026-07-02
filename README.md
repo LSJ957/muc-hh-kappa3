@@ -13,7 +13,11 @@ This repository accompanies a paper in preparation (muon-collider VBF HH → bb�
 resolved + boosted). It contains the **resolved-channel pipeline only**: feature
 extraction (including topological-data-analysis descriptors), the SPANet-style
 jet→Higgs pairing network, the two event classifiers, and the binned
-likelihood scan in κ₃.
+likelihood scan in κ₃. The release covers the default analysis chain behind
+the paper's central values; the auxiliary robustness studies quoted in the
+paper (template-morphing cross-check, bootstrap MC-statistics diagnostics,
+multi-seed ensembles) are simple variations of this chain and are not part of
+the release.
 
 ## Pipeline at a glance
 
@@ -28,7 +32,7 @@ likelihood scan in κ₃.
 | 05a | `05a_tune_ml2.py`        | `--retune-ml` (default OFF) | `models/<stage>/ml2_best.json` |
 | 05  | `05_train_ml2.py`        | always | `models/<stage>/ml2.keras` + scores |
 | 06  | `06_ml_analysis.py`      | always | `analysis/<stage>/*.png, *.npz` |
-| 07  | `07_dll_morphing.py`     | always | `dll/<stage>/dll_morphing.npz` + `dll_per_kappa.md` |
+| 07  | `07_dll_scan.py`         | always | `dll/<stage>/dll_scan.npz` + `dll_per_kappa.md` |
 | 08  | `08_dll_plots.py`        | always | `dll/<stage>/fig_dll_curve.png`, `fig_logSB.png` |
 
 ML1 is the signal-vs-background classifier ($\mathcal{D}_{\rm HH}$ in the paper);
@@ -118,13 +122,12 @@ yourself (`export PIPELINE_STAGE=10tev`) — see the note at the top of
   *independent* Monte-Carlo sample (`kappa_indep`; configurable in `dll.anchor`),
   so −ΔlnL(κ₃ = 1) is not artificially forced to 0 by self-comparison.
 
-* **Per-bin κ₃-quadratic morphing** over all available κ₃ samples →
-  `src/lib/morphing.py` (same physics as the ATLAS/CMS "quadratic combination"),
-  used as a cross-check of the raw per-κ₃ template scan.
-
-* **w68 extraction**: fourth-order polynomial fit of −ΔlnL(κ₃); the 68 % CL
-  interval is the connected region below 0.5 **referenced to the fitted
-  minimum** → `src/lib/dll.py:poly4_w68`.
+* **CL extraction**: the per-κ₃ Asimov −ΔlnL scan is shifted by its κ₃ = 1
+  value (a display convention; the constant shift does not change the
+  intervals) and fitted with a fourth-order polynomial; the 68 % (95 %) CL
+  interval is the connected region below 0.5 (1.92) **referenced to the
+  fitted minimum** → `src/lib/dll.py:poly4_w68`.  At 10 TeV the fit is
+  restricted to the refined grid κ₃ ∈ [0.8, 1.2] (`dll.fit_window`).
 
 * **Optuna with an anti-overparameterisation cap**: trials whose trainable
   parameter count violates `n_train_signal ≥ safety_factor × n_params` are
@@ -139,8 +142,8 @@ muc-hh-kappa3/
 │   ├── 01_extract_features.py … 08_dll_plots.py   # numbered pipeline steps
 │   └── lib/                      # config_loader, data_loader, jet_features,
 │                                 # extract_engine, spanet_engine, ml_arch,
-│                                 # morphing, dll, weights, sample_weights,
-│                                 # quantile, histograms, splits, physics_constants
+│                                 # dll, weights, sample_weights, quantile,
+│                                 # histograms, splits, physics_constants
 ├── requirements.txt
 ├── run_all.sh
 └── README.md

@@ -21,10 +21,10 @@ BR_HBB            = 0.58            # PDG/LHCHWG round value used throughout the
 BR_HBB_SQ         = BR_HBB * BR_HBB
 PT_H_RESOLVED_MAX = 200.0           # resolved-cut p_T(H) [GeV]
 BTAG_CUT          = 3               # n_btag_total ≥ this; used by
-                                    #   * lib.weights.{sigbg,kappa}_weights weight-zeroing
-                                    #     (only when caller sets apply_btag_cut=True)
-                                    #   * 07_dll_morphing.py per-κ template fill (when CLI
-                                    #     --apply-btag-cut true is passed)
+                                    # lib.weights.{sigbg,kappa}_weights weight-zeroing,
+                                    # only when the caller sets apply_btag_cut=True.
+                                    # The default analysis applies NO b-tag cut (the
+                                    # b-tag information is an ML input feature instead).
                                     # The ML2 *training* BTAG filter is a separate knob:
                                     # config.training.ml2_btag_cut (-1 = no cut, ≥0 = cut).
 KAPPA_MATCH_TOL   = 0.005

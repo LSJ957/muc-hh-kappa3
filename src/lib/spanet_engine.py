@@ -4,7 +4,7 @@ HH→4b jet pairing + sig/bg classification + Higgs-mass regression aux task),
 training/eval helpers, and post-training HL recompute / inference utilities.
 This is a **library module** consumed by `02_train_spanet.py`,
 `03_precompute_pairing.py`, `04_train_ml1.py`, `05_train_ml2.py`, `06_ml_analysis.py`
-and `07_dll_morphing.py`.  No stand-alone runner — the legacy `train_spanet()`,
+and `07_dll_scan.py`.  No stand-alone runner — the legacy `train_spanet()`,
 `apply_spanet_and_save()`, `make_plots()`, `main()` were removed 2026-05-28.
 
 Two architecture versions are supported via cfg['version']:

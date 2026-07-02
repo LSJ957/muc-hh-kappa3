@@ -67,7 +67,7 @@ def load_h5(h5_path: str, *, cols_hl=None, load_jets=True, load_truth=True, load
         if load_ll_cloud and 'll_cloud' in f:
             out['ll_cloud'] = f['ll_cloud'][:].astype(np.float32)
     out['N'] = N
-    # build an id distinct per-kappa for kappa scans (allows event tracing across morph fits)
+    # build an id distinct per-kappa for kappa scans (allows event tracing across κ templates)
     if np.unique(out['kappa3_value']).size > 1:
         out['global_event_id'] = _global_event_id(out['target_everytype'],
                                                   out['kappa3_value'].astype(np.float64))

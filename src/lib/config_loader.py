@@ -33,11 +33,15 @@ ml_usage:
     train: [<input names>]           # h5(s) for SPANet training (signal events w/ truth_valid)
 
 dll:
-  fit_kappa_grid: [<float list>]     # κ values to use in DLL morphing + scatter (DEFAULT)
-  morph_sources: [<input names>]     # h5(s) feeding per-bin κ²-quadratic fit
+  fit_kappa_grid: [<float list>]     # κ values scanned for the −ΔlnL(κ3) curve
+  template_sources: [<input names>]  # h5(s) providing the per-κ signal templates
+                                     # (priority order: first listed wins per κ)
+  fit_window: [lo, hi]               # OPTIONAL: restrict the poly4 fit to this
+                                     # κ sub-range (points outside are scanned
+                                     # and plotted but not fitted)
   anchor:
     source: <input name>             # h5 providing the independent κ=1 reference n_A
-    kappa: <float>                   # κ value of the anchor (usually 1.0)
+    kappa: <float>                   # κ value of the reference (usually 1.0)
 
 optuna:
   spanet:
@@ -113,7 +117,7 @@ def _validate(cfg: dict, path: str):
             if f not in cfg['ml_usage'][head]:
                 raise ValueError(f'ml_usage.{head}.{f} missing')
     # dll
-    for key in ('fit_kappa_grid', 'morph_sources', 'anchor'):
+    for key in ('fit_kappa_grid', 'template_sources', 'anchor'):
         if key not in cfg['dll']:
             raise ValueError(f'dll.{key} missing')
     for key in ('source', 'kappa'):
@@ -127,9 +131,9 @@ def _validate(cfg: dict, path: str):
                 for n in ml_spec[sub]:
                     if n not in declared:
                         raise ValueError(f'ml_usage.{ml_name}.{sub}: "{n}" not in inputs')
-    for n in cfg['dll']['morph_sources']:
+    for n in cfg['dll']['template_sources']:
         if n not in declared:
-            raise ValueError(f'dll.morph_sources: "{n}" not in inputs')
+            raise ValueError(f'dll.template_sources: "{n}" not in inputs')
     if cfg['dll']['anchor']['source'] not in declared:
         raise ValueError(f'dll.anchor.source: "{cfg["dll"]["anchor"]["source"]}" not in inputs')
 
