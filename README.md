@@ -162,6 +162,15 @@ git-ignored.
 5. final −ΔlnL(κ₃) plot at `dll/<stage>/fig_dll_curve.png`; per-κ₃ table at
    `dll/<stage>/dll_per_kappa.md`
 
+A note on reproducibility: given fixed trained networks, the likelihood scan
+and CL extraction (steps 07 and 08) are deterministic and reproduce the
+paper's intervals exactly. The network trainings themselves (steps 02, 04,
+05) run on GPU and are not bit-reproducible, so a retrained pipeline lands on
+statistically equivalent but not identical networks. The extracted intervals
+then reproduce the paper within the training spread; repeating the full
+training with five different random seeds moved the 68% CL width by about
+±0.02 at 3 TeV and ±0.005 at 10 TeV.
+
 ## Citation
 
 If you use this code, please cite the accompanying paper (reference to be added
