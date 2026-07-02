@@ -40,9 +40,10 @@ from . import physics_constants as _pc
 # 0.  CONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════
 # Path/sample-list constants from the legacy stand-alone runner were removed
-# 2026-05-28 — they referenced /data/mucollider and a 3 TeV-only sample table.
-# This module is now only imported as a library (process_one_root / save_h5);
-# all paths/x-sections live in `config/<stage>.yaml` and `physics_constants.py`.
+# 2026-05-28 — they referenced machine-specific paths and a 3 TeV-only sample
+# table.  This module is now only imported as a library (process_one_root /
+# save_h5); all paths/x-sections live in `config/<stage>.yaml` and
+# `physics_constants.py`.
 
 JET_BRANCH  = "VLCjetR05N4"
 N_JETS      = 4

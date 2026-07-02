@@ -20,8 +20,8 @@ def hist2d(
     Events outside the edges are silently dropped (np.histogram2d default).
     For our use case the edges should always be wider than the score range
     (uniform_edges on [-pad, 1+pad] for sigmoid d1, weighted_quantile_edges
-    extending past min/max for d2). The evaluator's assertions catch
-    out-of-range events at debug time.
+    extending past min/max for d2).  07_dll_morphing calls
+    `fraction_out_of_range` per κ template and warns if any weight is dropped.
     """
     d1 = np.asarray(d1, dtype=np.float64).ravel()
     d2 = np.asarray(d2, dtype=np.float64).ravel()

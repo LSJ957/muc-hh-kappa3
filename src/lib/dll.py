@@ -5,17 +5,14 @@ multiple disjoint <0.5 regions (that was the latent bug in `lib.py:extract_w68`
 of the old codebase). Always use the connected interval containing the
 global minimum.
 
-Active w68 entry point:
+Two entry points, one per DLL-curve type:
+  • `poly4_w68(k, dll)` — 4th-order polyfit then connected width, for a SPARSE
+                          per-κ scatter (raw per-κ Asimov points).  This is the
+                          extractor behind the paper's headline w68 numbers.
   • `connected_w68_on_fine(kfine, dllB, fit_range)` — already-smooth DLL curve
-                                      (e.g. from morphing); reads connected
-                                      width on the fine-grid directly.
-
-Reserve helper:
-  • `poly4_w68(k, dll)` — 4th-order polyfit then connected width. Currently
-                          NOT called by the active pipeline but preserved for
-                          sparse-scatter use cases (e.g. raw-P3 bootstrap of
-                          individual κ points where the data is noisy and a
-                          smoothing fit is needed before width extraction).
+                                      (e.g. from per-bin quadratic morphing,
+                                      07_dll_morphing); reads the connected
+                                      width on the fine grid directly.
 
 Both honour the same convention: shift = min(DLL inside fit_range), threshold
 0.5, connected region containing the in-range argmin.
@@ -28,10 +25,11 @@ from . import physics_constants as pc
 def asimov_dll(n_array: np.ndarray, mu_array: np.ndarray,
                eps: float = pc.DLL_EPS) -> float:
     """Saturated Asimov −Δ log L:
-        Σ_bins max(n·log(n/μ) − (n−μ), 0)
-    with both n and μ floored at `eps` before the log. Clipping to ≥0 follows
-    the Phase-A2 convention to silence tiny negative noise from float
-    cancellations.
+        max( Σ_bins [n·log(n/μ) − (n−μ)], 0 )
+    with both n and μ floored at `eps` before the log.  (Each bin term is
+    analytically ≥ 0, so clipping the total — done here — and clipping per bin
+    agree up to float noise; the clip only silences tiny negative residue
+    from float cancellations.)
 
     Both inputs are flattened automatically; their shapes must match.
     """
@@ -69,6 +67,9 @@ def poly4_w68(
       rmse          : sqrt(mean((dll - poly4(k))²))
       poly_coef     : numpy poly coefficients (highest-power first)
       poly_min_raw  : polynomial minimum BEFORE the Phase-A2 shift
+      touches_boundary : True if the connected region hits the edge of the κ
+                      grid — the returned width is then a LOWER BOUND (the
+                      true interval extends beyond the scanned range)
     """
     k = np.asarray(k3_grid, dtype=np.float64)
     d = np.asarray(dll_values, dtype=np.float64)
@@ -108,6 +109,7 @@ def poly4_w68(
             rmse=rmse,
             poly_coef=poly.tolist(),
             poly_min_raw=poly_min_raw,
+            touches_boundary=False,
         )
 
     # Canonical: max-min span of the entire mask
@@ -138,6 +140,7 @@ def poly4_w68(
         rmse=rmse,
         poly_coef=poly.tolist(),
         poly_min_raw=poly_min_raw,
+        touches_boundary=bool(lo == 0 or hi == len(mask) - 1),
     )
 
 
@@ -158,7 +161,9 @@ def connected_w68_on_fine(kfine: np.ndarray, dllB: np.ndarray,
 
     Returns
     -------
-    dict with: w68_connected, k3_lo, k3_hi, k3_min, dll_min_inrange
+    dict with: w68_connected, k3_lo, k3_hi, k3_min, dll_min_inrange,
+    touches_boundary (True → the connected region hits the edge of fit_range,
+    so the returned width is a lower bound).
     """
     kfine = np.asarray(kfine, dtype=np.float64)
     dllB  = np.asarray(dllB,  dtype=np.float64)
@@ -179,10 +184,12 @@ def connected_w68_on_fine(kfine: np.ndarray, dllB: np.ndarray,
     a = b = i0
     while a > 0           and below[a-1]: a -= 1
     while b < len(below)-1 and below[b+1]: b += 1
+    _in_idx = np.where(in_range)[0]
     return dict(
         w68_connected = float(kfine[b] - kfine[a]),
         k3_lo         = float(kfine[a]),
         k3_hi         = float(kfine[b]),
         k3_min        = float(kfine[i0]),
         dll_min_inrange = dll_min,
+        touches_boundary = bool(a <= int(_in_idx[0]) or b >= int(_in_idx[-1])),
     )

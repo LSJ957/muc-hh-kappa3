@@ -145,6 +145,11 @@ def count_trainable(model: torch.nn.Module) -> int:
 
 def train_and_save(cfg_yaml, hp, out_dir, epochs, batch=1024, device=None):
     cfg = load_config(cfg_yaml); cfg = resolve_paths(cfg, os.path.join(HERE, os.pardir))
+    # Seed torch (weight init, dropout, DataLoader shuffling) — without this a
+    # rerun of 02 yields different assignments and shifts everything downstream.
+    # (Not bit-exact on GPU due to cuDNN nondeterminism, but far tighter.)
+    _seed = int(cfg['training']['seed'])
+    torch.manual_seed(_seed); torch.cuda.manual_seed_all(_seed); np.random.seed(_seed)
     train_inputs = cfg['ml_usage']['spanet']['train']
     log(f'building dataset from inputs: {train_inputs}')
     jets6, ycls, yas, tv, llc = build_dataset(cfg, train_inputs, ll=hp.get('ll_input', False))

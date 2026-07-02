@@ -53,6 +53,15 @@ def cache_path(cache_dir, input_name, root_idx):
 
 def extract_one_root(root_path, cache_file, label_sigbg, label_everytype, kappa3, is_signal):
     if os.path.exists(cache_file):
+        # The cache is keyed by list POSITION (…__rNN.npz); if the roots list
+        # was reordered/edited since extraction, the cached events belong to a
+        # different file.  Catch that instead of silently mixing samples.
+        cached_src = str(np.load(cache_file, allow_pickle=True)['source_root'])
+        if cached_src != os.path.basename(root_path):
+            raise RuntimeError(
+                f'cache {os.path.basename(cache_file)} was extracted from "{cached_src}" '
+                f'but the config now lists "{os.path.basename(root_path)}" at this position '
+                f'— the roots list changed; re-run with --force')
         log(f'    [cache] {os.path.basename(cache_file)}')
         return
     if not os.path.exists(root_path):
@@ -85,7 +94,8 @@ def extract_one_root(root_path, cache_file, label_sigbg, label_everytype, kappa3
     log(f'      → N={n:,}  truth_valid={nv:,}  ({100*nv/max(n,1):.1f}%)  cached')
 
 
-def combine_input(input_name, spec, cache_dir, stage, sqrts_TeV):
+def combine_input(input_name, spec, cache_dir, stage, sqrts_TeV,
+                  k3_list, sigbg_list, everytype_list):
     out = spec['h5']
     if os.path.exists(out):
         log(f'  [skip combine] {os.path.basename(out)} exists (use --force to overwrite)')
@@ -97,10 +107,30 @@ def combine_input(input_name, spec, cache_dir, stage, sqrts_TeV):
         cf = cache_path(cache_dir, input_name, ri)
         d = np.load(cf, allow_pickle=True)
         cols = list(d['hl_cols'])
-        hls.append(pd.DataFrame(d['hl_vals'], columns=cols))
+        hl_i = pd.DataFrame(d['hl_vals'], columns=cols)
+        # Labels (κ3 / process ids) were baked into the cache when it was
+        # written; if the config was edited since (without --force), the
+        # stamped values disagree with the current registry → corrupted
+        # templates downstream.  Validate every file before combining.
+        src_i = str(d['source_root'])
+        if src_i != os.path.basename(roots[ri]):
+            raise RuntimeError(
+                f'{input_name} root #{ri}: cache holds "{src_i}" but config lists '
+                f'"{os.path.basename(roots[ri])}" — roots list changed; re-run with --force')
+        got_k3 = hl_i['kappa3_value'].to_numpy()
+        ok_k3 = (np.isnan(got_k3).all() if k3_list[ri] is None
+                 else np.allclose(got_k3, float(k3_list[ri]), atol=1e-4))
+        ok_sb = bool((hl_i['target_sigbg'].to_numpy() == int(sigbg_list[ri])).all())
+        ok_et = bool((hl_i['target_everytype'].to_numpy() == int(everytype_list[ri])).all())
+        if not (ok_k3 and ok_sb and ok_et):
+            raise RuntimeError(
+                f'{input_name} root #{ri} ({src_i}): cached labels disagree with the current '
+                f'config (kappa3 ok={ok_k3}, target_sigbg ok={ok_sb}, target_everytype '
+                f'ok={ok_et}) — config changed since extraction; re-run with --force')
+        hls.append(hl_i)
         lls.append(d['ll_cloud']); jts.append(d['jets'])
         tps.append(d['truth_pairing']); tvs.append(d['truth_valid']); tdrs.append(d['truth_match_dr'])
-        src.append(str(d['source_root']))
+        src.append(src_i)
     hl_c = pd.concat(hls, ignore_index=True)
     ll_c = np.concatenate(lls); jt_c = np.concatenate(jts)
     tp_c = np.concatenate(tps); tv_c = np.concatenate(tvs); tdr_c = np.concatenate(tdrs)
@@ -166,7 +196,8 @@ def main():
                              label_everytype=int(lev[ri]),
                              kappa3=k3[ri],
                              is_signal=bool(sig[ri]))
-        combine_input(input_name, spec, cache_dir, stage, sqrts)
+        combine_input(input_name, spec, cache_dir, stage, sqrts,
+                      k3_list=k3, sigbg_list=ls, everytype_list=lev)
 
     log('\n=== EXTRACT DONE ===')
 

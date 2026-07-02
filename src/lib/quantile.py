@@ -71,6 +71,6 @@ def weighted_quantile_edges(
 
 def uniform_edges(n_bins: int, lo: float = 0.0, hi: float = 1.0,
                    pad: float = 1e-6) -> np.ndarray:
-    """Uniform `n_bins`-edge array on [lo-pad, hi+pad]. Used for the d1 axis
-    when ML1 outputs a sigmoid probability."""
+    """Uniform bin edges (`n_bins`+1 values) on [lo-pad, hi+pad]. Used for the
+    d1 axis when ML1 outputs a sigmoid probability."""
     return np.linspace(lo - pad, hi + pad, n_bins + 1)

@@ -70,6 +70,19 @@ def load_config(path: str) -> dict:
     with open(path) as f:
         cfg = yaml.safe_load(f)
     _validate(cfg, path)
+    # lib.physics_constants selects LUMI and the κ-xsec tables from the
+    # PIPELINE_STAGE env var at import time (default '3tev').  A stage/config
+    # mismatch silently mis-weights every yield and skips κ points absent from
+    # the wrong table — fail loud here instead.
+    try:
+        from . import physics_constants as _pc
+    except ImportError:                       # lib/ placed on sys.path directly
+        import physics_constants as _pc
+    if cfg['stage'] != _pc._STAGE:
+        raise RuntimeError(
+            f"config stage '{cfg['stage']}' != PIPELINE_STAGE '{_pc._STAGE}' — "
+            f"export PIPELINE_STAGE={cfg['stage']} before running "
+            f"(run_all.sh does this automatically)")
     return cfg
 
 

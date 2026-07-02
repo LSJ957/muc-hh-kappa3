@@ -23,7 +23,7 @@ from lib.data_loader   import load_input
 from lib.splits        import make_split_70_15_15
 from lib.weights       import sigbg_weights, kappa_weights
 from lib.quantile      import weighted_quantile_edges, uniform_edges
-from lib.histograms    import hist2d
+from lib.histograms    import hist2d, fraction_out_of_range
 from lib.dll           import asimov_dll, connected_w68_on_fine
 from lib import ml_arch as MA
 from lib.morphing      import fit_per_bin_quadratic, evaluate as morph_eval
@@ -122,6 +122,17 @@ def main():
     tgt = sb['target_sigbg']; nbt = sb['n_btag_total']
     pid = sb['target_everytype']
     sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
+    # Cross-check the re-derived ML1 test fold against the indices 04 actually
+    # used (saved in ml1_scores.npz).  If the split recipe in 04 ever drifts
+    # (e.g. the USE_V6_SPLIT strata), B would silently include ML1 training
+    # events — fail loud instead.
+    _ml1_scores_p = os.path.join(cfg['models_dir'], 'ml1_scores.npz')
+    if os.path.exists(_ml1_scores_p):
+        _saved = np.load(_ml1_scores_p)['idx_test']
+        if not np.array_equal(np.sort(_saved), np.sort(sp['idx_test'])):
+            sys.exit('ML1 test-fold reconstruction disagrees with ml1_scores.npz idx_test — '
+                     'the 04/07 split recipes have drifted; fix before trusting B')
+        log('  ML1 test-fold cross-check vs ml1_scores.npz: OK')
     test_mask = np.zeros(sb['N'], dtype=bool); test_mask[sp['idx_test']] = True
     resc = sb['N'] / max(int(test_mask.sum()), 1)            # test-fold rescale (~6.67)
     # apply-btag-cut at analysis (default False — adopted setup is "no analysis-stage
@@ -234,6 +245,16 @@ def main():
         per_src_test_mask[nm][test_rows_concat[in_range] - lo] = True
     log(f'  ML2 test-fold recovered: pool N={len(y_pool):,}  test N={len(test_rows_concat):,}'
         f'  (split seed={cfg["training"]["seed"]})')
+    # Cross-check the recipe-duplicated fold against the indices 05 actually
+    # used (saved in ml2_scores.npz); recipe drift between 05 and this
+    # reconstruction would silently re-open the κ={0.4,1.6} template leak.
+    _ml2_scores_p = os.path.join(cfg['models_dir'], 'ml2_scores.npz')
+    if os.path.exists(_ml2_scores_p):
+        _saved = np.load(_ml2_scores_p)['idx_test']
+        if not np.array_equal(np.sort(_saved), np.sort(test_rows_concat)):
+            sys.exit('ML2 test-fold reconstruction disagrees with ml2_scores.npz idx_test — '
+                     'the 05/07 pool recipes have drifted; fix before trusting templates')
+        log('  ML2 test-fold cross-check vs ml2_scores.npz: OK')
 
     # Build per-κ template using chosen source, with per-source N_gen weighting
     uniq_k = sorted(chosen_src)
@@ -260,6 +281,13 @@ def main():
         xsec_pb = pc.KAPPA3_XSEC_PB[kf]
         w_evt = _kappa_w_evt(xsec_pb, src_ngen[src], leak_resc=leak_resc)
         wt = np.full(int(m.sum()), w_evt, dtype=np.float64)
+        # The d2 quantile edges were calibrated on bkg-test + anchor only;
+        # extreme-κ template scores can fall outside and hist2d drops them
+        # silently — surface any κ-dependent yield loss.
+        _foor = fraction_out_of_range(S['d1'][m], S['d2'][m], e1, e2, wt)
+        if _foor > 1e-6:
+            log(f'    ⚠️  κ={kf:.3f}: {100*_foor:.4f}% of template weight falls outside '
+                f'the (d1,d2) bin range and is dropped')
         Hmat[i] = hist2d(S['d1'][m], S['d2'][m], wt, e1, e2).ravel()
         tag = f'  test-only×{leak_resc:.2f}' if leaked and leak_resc > 1.0 else ''
         log(f'    κ={kf:.3f}  src={src}  N(BTAG≥{pc.BTAG_CUT})={int(m.sum()):,}  '

@@ -51,8 +51,15 @@ def main():
         h5p = cfg['inputs'][nm]['h5']
         out = os.path.join(cfg['models_dir'], f'assign_{nm}.npy')
         if os.path.exists(out):
-            log(f'  [skip] {nm}: {os.path.basename(out)} already there')
-            continue
+            # Recompute if the h5 was re-extracted or SPANet retrained after
+            # this assignment was written — a same-length stale file would
+            # otherwise desync silently (only a length assert guards it
+            # downstream).
+            out_m = os.path.getmtime(out)
+            if out_m >= os.path.getmtime(h5p) and out_m >= os.path.getmtime(pt):
+                log(f'  [skip] {nm}: {os.path.basename(out)} up to date')
+                continue
+            log(f'  [stale] {nm}: {os.path.basename(out)} older than h5/spanet.pt → recompute')
         # Version B (LL constituent cloud) requires loading ll_cloud per file
         # — previously dropped which would silently mis-pair.  Currently the
         # active pipeline is Version A so ll_cloud stays None (review N-2).
