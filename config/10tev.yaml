@@ -1,0 +1,161 @@
+# =====================================================================
+#  10 TeV configuration  ·  μ+μ- → HHνν̄ → bbbbνν̄  ·  L = 10 ab⁻¹
+# =====================================================================
+stage:         10tev
+sqrts_TeV:     10.0
+data_dir:      data/10tev
+models_dir:    models/10tev
+analysis_dir:  analysis/10tev
+dll_dir:       dll/10tev
+
+# Root directory holding the raw Delphes .root files.  Resolved by
+# `config_loader.resolve_paths`: env var `HHML_DATA_ROOT` takes precedence
+# over this yaml value.  Replace this placeholder with your own path or
+# `export HHML_DATA_ROOT=/your/path/to/HH-ML-MuC/Events_NonBoost/root_files`
+# before running step 01_extract_features.py.
+data_root:     /path/to/HH-ML-MuC/Events_NonBoost/root_files
+
+inputs:
+
+  sigbg_main:
+    h5: data/10tev/sigbg_main.h5
+    n_gen_per_process: 500000
+    roots:
+      - ${data_root}/mm_hhx_10tev.root
+      - ${data_root}/mm_hqqvv_10tev.root
+      - ${data_root}/mm_wwvv_10tev.root
+      - ${data_root}/mm_zzvv_10tev.root
+      - ${data_root}/mm_ttvv_10tev.root
+      - ${data_root}/mm_ww_10tev.root
+      - ${data_root}/mm_zz_10tev.root
+      - ${data_root}/mm_tt_10tev.root
+    kappa3:           [1.0, null, null, null, null, null, null, null]
+    target_sigbg:     [1,   0,    0,    0,    0,    0,    0,    0]
+    target_everytype: [0,   1,    2,    3,    4,    5,    6,    7]
+    is_signal:        [true, false, false, false, false, false, false, false]
+
+  # ALL κ-scan files at k₂V=1 (main 17 + extras)
+  kappa_scan_main:
+    h5: data/10tev/kappa_scan_main.h5
+    n_gen_per_kappa: 100000
+    roots:
+      # main grid: KCOARSE (9, 0.2-spacing) + KFINE (8, 0.04-spacing in [0.84, 1.16])
+      - ${data_root}/mm_hhx_kappa_k3_0.2_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.4_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.6_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.8_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.84_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.88_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.92_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.96_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.0_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.04_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.08_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.12_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.16_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.2_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.4_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.6_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.8_k2v_1_10tev.root
+      # extras (older 0.05 / 0.01 grids — kept in h5 for optional DLL use)
+      - ${data_root}/mm_hhx_kappa_k3_0.85_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.9_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.95_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.97_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.98_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_0.99_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.01_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.02_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.03_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.05_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.1_k2v_1_10tev.root
+      - ${data_root}/mm_hhx_kappa_k3_1.15_k2v_1_10tev.root
+    kappa3: [0.2, 0.4, 0.6, 0.8, 0.84, 0.88, 0.92, 0.96, 1.0, 1.04, 1.08, 1.12, 1.16, 1.2, 1.4, 1.6, 1.8,
+             0.85, 0.9, 0.95, 0.97, 0.98, 0.99, 1.01, 1.02, 1.03, 1.05, 1.1, 1.15]
+    target_sigbg:     1
+    target_everytype: 0
+    is_signal:        true
+
+  kappa_set2:
+    h5: data/10tev/kappa_set2.h5
+    n_gen_per_kappa: 100000
+    roots:
+      - ${data_root}/mm_hhx_kappa_k3_0.4_k2v_1_10tev_set2.root
+      - ${data_root}/mm_hhx_kappa_k3_1.0_k2v_1_10tev_set2.root
+      - ${data_root}/mm_hhx_kappa_k3_1.6_k2v_1_10tev_set2.root
+    kappa3: [0.4, 1.0, 1.6]
+    target_sigbg:     1
+    target_everytype: 0
+    is_signal:        true
+
+  # High-statistics 500k samples in [0.80, 1.20] at 0.04 spacing (≈5× existing).
+  # Used in addition to kappa_scan_main for DLL morphing (07).
+  kappa_scan_500k:
+    h5: data/10tev/kappa_scan_500k.h5
+    n_gen_per_kappa: 500000
+    roots:
+      - ${data_root}/mm_hhx_kappa_k3_0.80_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_0.84_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_0.88_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_0.92_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_0.96_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_1.00_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_1.04_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_1.08_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_1.12_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_1.16_k2v_1_10tev_500k.root
+      - ${data_root}/mm_hhx_kappa_k3_1.20_k2v_1_10tev_500k.root
+    kappa3: [0.80, 0.84, 0.88, 0.92, 0.96, 1.00, 1.04, 1.08, 1.12, 1.16, 1.20]
+    target_sigbg:     1
+    target_everytype: 0
+    is_signal:        true
+
+ml_usage:
+  spanet:
+    train: [sigbg_main]
+  ml1:
+    sigbg: [sigbg_main]
+  ml2:
+    kappa_low:  0.4
+    kappa_high: 1.6
+    source: [kappa_scan_main, kappa_set2]
+
+dll:
+  fit_kappa_grid: [0.2, 0.4, 0.6, 0.8, 0.84, 0.88, 0.92, 0.96, 1.0, 1.04, 1.08, 1.12, 1.16, 1.2, 1.4, 1.6, 1.8]
+  # PRIORITY ORDER (first listed wins when multiple sources share a κ value):
+  # set2 first → P3 leak-free at κ∈{0.4,1.0,1.6}
+  # 500k second → high-stat templates at κ∈[0.80,1.20]∩0.04-grid
+  # main last → fallback for κ values not covered by the above
+  morph_sources:  [kappa_set2, kappa_scan_500k, kappa_scan_main]
+  anchor:
+    source: kappa_set2
+    kappa:  1.0
+
+# Optuna HP-search settings.  Re-tuning is driven by `bash run_all.sh --retune-spanet`
+# and `bash run_all.sh --retune-ml` (and the 02a / 04a / 05a scripts directly), not by
+# any yaml flag.  `from_best` is a fallback path used only when no local
+# `models/<stage>/{ml1,ml2}_best.json` exists — leave it as the relative
+# sentinel below; the active pipeline writes a local best.json from Optuna or
+# the user passes `--from-best`.
+optuna:
+  spanet:
+    n_trials: 30
+    epochs_per_trial: 20
+    safety_factor: 1.0                # prune trial if n_params×k > N_train_truth_valid
+  ml1:
+    from_best: __none__               # no local best.json → must pass --from-best
+    n_trials: 20
+    epochs_per_trial: 15
+    safety_factor: 2.0
+  ml2:
+    from_best: __none__               # no local best.json → must pass --from-best
+    n_trials: 20
+    epochs_per_trial: 25
+    safety_factor: 2.0
+
+training:
+  seed: 42
+  split: [0.70, 0.15, 0.15]
+  epochs_final: 70
+  batch_choices: [512, 1024]
+  ml2_btag_cut: -1            # 2026-05-27: NO BTAG cut at training (κ-irrelevant)

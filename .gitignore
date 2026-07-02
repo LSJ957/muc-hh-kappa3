@@ -1,0 +1,39 @@
+# Pipeline outputs (regenerable from raw .root files + this code)
+data/
+models/
+analysis/
+dll/
+logs/
+
+# Large binary / data formats — never commit
+*.h5
+*.hdf5
+*.root
+*.npz
+*.npy
+*.keras
+*.pt
+*.pkl
+*.onnx
+
+# Generated figures / logs
+*.png
+*.pdf
+*.log
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# editor
+.vscode/
+.idea/
+*.swp
+
+# notebooks
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
