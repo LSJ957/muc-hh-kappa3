@@ -65,7 +65,7 @@ def canonical_sigbg_strata(sig_lab, truth_valid):
     (combination sig=0/tv=True does not exist by construction.)
 
     Used by both 02_train_spanet and 04_train_ml1 *only* when the
-    environment variable USE_V6_SPLIT=1 is set — preserving original v5
-    behaviour by default."""
+    environment variable SPANET_SHARED_SPLIT=1 is set — by default each
+    stage draws its own split."""
     return np.asarray(sig_lab).astype(np.int64) * 2 + \
            np.asarray(truth_valid).astype(np.int64)

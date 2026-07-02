@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""07_dll_morphing.py — config-driven P3 leak-free DLL with per-bin κ³-quadratic
-morphing.  Reads ML1/ML2 scores (from 04/05), builds the 10×10 (ML1 uniform ×
-ML2 quantile) template per κ available in `dll.morph_sources`, fits the per-bin
-quadratic, evaluates Asimov DLL on a fine κ grid against `dll.anchor`, also
-records raw P3 scatter with MC-bootstrap σ and a per-κ DLL table."""
+"""07_dll_morphing.py — config-driven Asimov −ΔlnL(κ3) scan with per-bin
+κ3-quadratic morphing.  Reads ML1/ML2 scores (from 04/05), builds the 10×10
+(ML1 uniform × ML2 quantile) template per κ available in `dll.morph_sources`,
+fits the per-bin quadratic, and evaluates the Asimov DLL on a fine κ grid
+against `dll.anchor` (the κ=1 reference spectrum, taken from a statistically
+independent sample so the likelihood is never evaluated against the same
+events that built the templates).  Also records the raw per-κ DLL scan with
+MC-bootstrap σ and a per-κ table."""
 import os, sys, argparse, json, time
 _LIB = os.environ.get('HHML_CONDA_LIB')
 if _LIB is None:
@@ -40,7 +43,7 @@ def _kappa_w_evt(xsec_pb, ngen, leak_resc=1.0):
 
     w = σ(κ)[pb] · BR(H→bb)² · 1000 [fb/pb] · LUMI[fb⁻¹] / N_gen · leak_resc.
 
-    Single source of truth for the per-κ template weight (review B-2):
+    Single source of truth for the per-κ template weight:
     the inline formula previously duplicated at two sites in this file is
     now derived from this helper; lib.weights.kappa_weights computes the
     same quantity, just on an event array instead of a scalar.
@@ -74,13 +77,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--config', required=True)
     ap.add_argument('--nboot', type=int, default=300,
-                    help='bootstrap reps for raw P3 scatter σ')
+                    help='bootstrap reps for the raw per-κ DLL scan σ')
     ap.add_argument('--ml2-model', default=None,
                     help='override ml2.keras filename (e.g. ml2_btag_legacy.keras, ml2_nobtag_active.keras)')
     ap.add_argument('--ml2-best',  default=None,
                     help='override ml2_best.json filename (auto-derived from --ml2-model if not given)')
     ap.add_argument('--anchor-source', default=None,
-                    help='override cfg.dll.anchor.source (e.g. kappa_scan_main for P1)')
+                    help='override cfg.dll.anchor.source (e.g. kappa_scan_main for a same-sample self-test)')
     ap.add_argument('--morph-sources', default=None,
                     help='comma-separated override for cfg.dll.morph_sources')
     ap.add_argument('--apply-btag-cut', choices=['true', 'false'], default=None,
@@ -124,7 +127,7 @@ def main():
     sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
     # Cross-check the re-derived ML1 test fold against the indices 04 actually
     # used (saved in ml1_scores.npz).  If the split recipe in 04 ever drifts
-    # (e.g. the USE_V6_SPLIT strata), B would silently include ML1 training
+    # (e.g. the SPANET_SHARED_SPLIT strata), B would silently include ML1 training
     # events — fail loud instead.
     _ml1_scores_p = os.path.join(cfg['models_dir'], 'ml1_scores.npz')
     if os.path.exists(_ml1_scores_p):
@@ -141,7 +144,7 @@ def main():
     # true forces the legacy behaviour for diagnostic runs).
     _apply_btag = cfg['dll'].get('_apply_btag_cut_override', False)
     # Honour config n_gen_per_process so a non-default MC budget is correctly
-    # normalised in B (review V-5).
+    # normalised in B.
     _sigbg_in = cfg['ml_usage']['ml1']['sigbg'][0]
     _ngen     = cfg['inputs'][_sigbg_in].get('n_gen_per_process')
     w_sb = sigbg_weights(tgt, pid, nbt, _apply_btag, n_gen_per_process=_ngen) * test_mask * resc
@@ -159,7 +162,7 @@ def main():
     sm_mask = np.abs(anc['kappa3_value'] - k_anchor) < KAPPA_MATCH_TOL
     if not sm_mask.any():
         sys.exit(f'anchor "{anchor_name}" has no κ={k_anchor} events')
-    # Use anchor source's actual N_gen (kappa_set2: 100k, kappa_scan_500k: 500k, ...)
+    # Use anchor source's actual N_gen (kappa_indep: 100k, kappa_scan_500k: 500k, ...)
     anchor_ngen = int(cfg['inputs'][anchor_name].get('n_gen_per_kappa', pc.N_GEN_KAPPA_PER_SLICE))
     w_anc = kappa_weights(anc['kappa3_value'], anc['n_btag_total'], _apply_btag,
                           n_gen_per_kappa=anchor_ngen)
@@ -193,7 +196,7 @@ def main():
                                    nbt=d['n_btag_total'])
         # For each canonical κ in xsec table, check if this source has events
         for kf in pc.KAPPA3_XSEC_PB:
-            # P3 leak-free: skip the anchor source at the anchor's κ value
+            # Keep the κ=1 reference independent: skip the anchor source at the anchor's κ value
             # (otherwise raw template = anchor events → DLL=0 by self-comparison)
             if src_name == anchor_name and abs(kf - k_anchor) < KAPPA_MATCH_TOL:
                 continue
@@ -203,7 +206,7 @@ def main():
             if kf not in chosen_src:    # priority: first source listed wins
                 chosen_src[kf] = src_name
 
-    # ── ML2 test-fold per-source row masks (review D-1 leak fix) ─────────
+    # ── ML2 test-fold per-source row masks ─────────
     # ML2 trained on κ ∈ {kappa_low, kappa_high} from ml_usage.ml2.source.
     # A template at those κ values from any ml2.source has data leakage —
     # ML2 has memorised the train/val portion → artificially sharper scores.
@@ -312,7 +315,7 @@ def main():
     log(f'  w68 = {w68_val:.4f}  κ ∈ [{lo:.3f}, {hi:.3f}]  κ̂={kmin:.3f}  '
         f'DLL_B(κ=1) raw = {dllB[np.argmin(np.abs(kfine-1.0))]:.4f}')
 
-    # ── 4) Raw P3 scatter on fit_grid with bootstrap σ ──
+    # ── 4) Raw per-κ DLL scan on fit_grid with bootstrap σ ──
     # For each requested κ, use the SAME priority-chosen source as the
     # morphing template (so the raw DLL is consistent with the smooth curve).
     #
@@ -323,7 +326,7 @@ def main():
     # anchor-MC statistics floor, nor any experimental (data-Poisson)
     # uncertainty.  For absolute experimental uncertainty on w_{68}, run
     # Asimov toys instead.  This σ_bootstrap is appropriate for diagnosing
-    # MC-stat noise of the raw P3 scatter relative to the smooth morphed curve.
+    # MC-stat noise of the raw per-κ scan relative to the smooth morphed curve.
     raw_vals = np.full(len(fit_grid), np.nan)
     raw_sig  = np.full(len(fit_grid), np.nan)
     rng = np.random.default_rng(0)
@@ -383,7 +386,7 @@ def main():
     np.savez(out_npz,
              stage=stage, e1=e1, e2=e2, B=B, nA_anchor=nA_anchor,
              morph_coef=fit['coef'], morph_R2=fit['R2'], morph_kappas=uniq_k,
-             morph_basis=fit['basis'],   # tag the (κ-1)^[0,1,2] convention (review V-6)
+             morph_basis=fit['basis'],   # tag the (κ-1)^[0,1,2] convention
              kfine=kfine, dllB=dllB,
              fit_grid=fit_grid, raw_vals=raw_vals, raw_sig=raw_sig,
              w68=w68_val, w68_lo=lo, w68_hi=hi, kmin=kmin)
@@ -393,11 +396,11 @@ def main():
     md = os.path.join(out_dir, f'dll_per_kappa{args.out_suffix}.md')
     with open(md, 'w') as f:
         f.write(f'# DLL per κ — stage={stage}\n\n')
-        f.write(f'P3 anchor: source=`{anchor_name}`, κ_anchor={k_anchor}\n')
+        f.write(f'κ=1 reference spectrum: source=`{anchor_name}`, κ_anchor={k_anchor}\n')
         f.write(f'morph_R² (template fit) = {fit["R2"]:.5f}\n\n')
         f.write(f'**w68 = {w68_val:.4f}**   κ ∈ [{lo:.3f}, {hi:.3f}]   κ̂ = {kmin:.3f}\n')
         f.write(f'DLL_B(κ=1) raw (un-shifted) = {dllB[np.argmin(np.abs(kfine-1.0))]:.4f}\n\n')
-        f.write('| κ | DLL_morphing(κ) | raw P3 DLL | ±σ_bootstrap |\n')
+        f.write('| κ | DLL_morphing(κ) | raw DLL | ±σ_bootstrap |\n')
         f.write('|---:|---:|---:|---:|\n')
         for ki, k in enumerate(fit_grid):
             dm = float(np.interp(k, kfine, dllB))

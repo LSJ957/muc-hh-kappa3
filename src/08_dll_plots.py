@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """08_dll_plots.py — render DLL paper figures (PNG) from 07's npz:
-    fig_dll_curve.png    morphing curve + raw P3 ± bootstrap σ + w68 band
+    fig_dll_curve.png    morphing curve + raw per-κ scan ± bootstrap σ + w68 band
     fig_logSB.png        log10(S/B) on the 10×10 (ML1 × ML2) quantile grid"""
 import os, sys, argparse
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +23,7 @@ def render_dll(npz_path, out_path, stage_label, color):
     a.plot(kf, sh, '-', color=color, lw=2.0, zorder=4, label='morphing curve')
     a.errorbar(fit_grid, raw, yerr=sig, fmt='o', color=color, mec='k', mew=0.4, ms=5,
                ecolor=color, elinewidth=1.0, capsize=2.2, ls='none', zorder=5,
-               label='raw P3 ± bootstrap σ')
+               label='raw per-κ DLL ± bootstrap σ')
     a.axhline(0.5, color='0.5', ls=':', lw=1.0)
     a.axvline(1.0, color='0.7', lw=0.7, alpha=0.6)
     a.axvspan(lo, hi, color=color, alpha=0.13)
@@ -51,7 +51,7 @@ def render_logSB(npz_path, out_path, stage_label):
     # `morph_coef` has shape (3, Nbins) → α, β, γ per bin in
     #     S(κ) = α + β·(κ-1) + γ·(κ-1)²
     # At κ=1 the (κ-1)-basis reduces to just α — no need to evaluate β/γ
-    # (review B-N-1: the older `a + b*0 + c*0` form looked like a bug).
+    # (the older `a + b*0 + c*0` form looked like a bug).
     a, _b, _c = R['morph_coef']
     S = np.clip(a, 0.0, None).reshape(10, 10)
     B = R['B'].reshape(10, 10)

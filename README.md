@@ -45,7 +45,13 @@ detector card), generated as described in the paper: the HH signal for a grid of
 process); they can be regenerated from the generator setup in the paper, or
 requested from the authors. Every input `.root` file is listed **explicitly by
 path** in `config/<stage>.yaml` — no filename parsing or auto-discovery — so the
-analysis is reproducible bit-for-bit from this repo + the samples.
+analysis is reproducible bit-for-bit from this repo + the samples. The file
+names in the `roots:` lists are examples reflecting our generation batches;
+point them at your own files (the `${data_root}` prefix is substituted from
+`HHML_DATA_ROOT`). The `kappa_indep` input is a second, statistically
+independent generation at κ₃ ∈ {0.4, 1.0, 1.6}; it provides the κ₃ = 1
+reference spectrum for the likelihood and unbiased evaluation templates at the
+two κ₃ values the shape classifier was trained on.
 
 ## Environment
 
@@ -109,7 +115,7 @@ yourself (`export PIPELINE_STAGE=10tev`) — see the note at the top of
   `src/lib/extract_engine.py`.
 
 * **Leak-free likelihood protocol**: the κ₃ = 1 Asimov anchor is taken from an
-  *independent* Monte-Carlo sample (`kappa_set2`; configurable in `dll.anchor`),
+  *independent* Monte-Carlo sample (`kappa_indep`; configurable in `dll.anchor`),
   so −ΔlnL(κ₃ = 1) is not artificially forced to 0 by self-comparison.
 
 * **Per-bin κ₃-quadratic morphing** over all available κ₃ samples →

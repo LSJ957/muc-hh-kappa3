@@ -2,7 +2,7 @@
 
 Single source of truth: tune scripts (04a/05a) and final-train scripts (04/05)
 MUST call the same helpers so Optuna optimises the same loss landscape that
-final training uses.  See review N-7 (round 2) for the prior asymmetry bug.
+final training uses (an earlier version had them subtly asymmetric).
 
 The recipe is the same for both heads:
   1) physics weight per event = xsec × BR(²) × LUMI / N_gen  (process-aware)

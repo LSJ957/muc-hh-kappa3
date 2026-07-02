@@ -57,7 +57,7 @@ def build_inputs_ml1(cfg):
     drop = DEFAULT_DROP
     n_globals = len(MA.kept_globals(drop))
     inputs = cfg['ml_usage']['ml1']['sigbg']
-    # USE_V6_SPLIT needs truth_valid for canonical stratification (small cost).
+    # SPANET_SHARED_SPLIT needs truth_valid for canonical stratification (small cost).
     sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
     assign = np.concatenate([np.load(os.path.join(cfg['models_dir'], f'assign_{nm}.npy'))
                              for nm in inputs]).astype(np.int8)
@@ -69,9 +69,9 @@ def build_inputs_ml1(cfg):
     gtda   = MA.build_globals_tda(sb['hl'])
     llc    = sb['ll_cloud']
     y = sb['target_sigbg'].astype(np.float32)
-    # USE_V6_SPLIT=1 → same canonical stratify as 02/04 so all three stages
-    # produce one identical 70/15/15 partition (review v6 leak fix).
-    if os.environ.get('USE_V6_SPLIT', '0') == '1':
+    # SPANET_SHARED_SPLIT=1 → same canonical stratify as 02/04 so all three stages
+    # produce one identical 70/15/15 partition.
+    if os.environ.get('SPANET_SHARED_SPLIT', '0') == '1':
         from lib.splits import canonical_sigbg_strata
         _strata = canonical_sigbg_strata(y, sb['truth_valid'])
         sp = make_split_70_15_15(_strata, seed=cfg['training']['seed'])
@@ -82,9 +82,9 @@ def build_inputs_ml1(cfg):
     Xtr = {k: v[sp['idx_train']] for k, v in X.items()}
     Xva = {k: v[sp['idx_val']]   for k, v in X.items()}
     ytr = y[sp['idx_train']]; yva = y[sp['idx_val']]
-    # tune/train loss-function parity (review N-7 round 2): the same physics-
+    # tune/train loss-function parity: the same physics-
     # weight × class-weight recipe used by 04_train_ml1.py must drive Optuna.
-    n_gen_proc = cfg['inputs'][inputs[0]].get('n_gen_per_process')  # review V-5
+    n_gen_proc = cfg['inputs'][inputs[0]].get('n_gen_per_process')
     sw_tr, sw_va, cw_ratio = ml1_sample_weights(
         sb['target_sigbg'], sb['target_everytype'], sb['n_btag_total'],
         sp['idx_train'], sp['idx_val'], ytr, yva,
@@ -118,7 +118,7 @@ def main():
             tf.keras.backend.clear_session(); del m
             raise optuna.TrialPruned(f'n_params={n_pars:,} × {safety_fac} > N_train={N_train:,}')
         # weighted_metrics so val_auc matches the sample_weighted loss surface
-        # (review v5).  Without this, Optuna's `best_val_auc` would optimise an
+        #.  Without this, Optuna's `best_val_auc` would optimise an
         # unweighted metric while the final-train loss is weighted → tune/train
         # divergence on the model-selection criterion.
         m.compile(optimizer=optimizers.AdamW(learning_rate=hp['lr'], weight_decay=hp['wd']),
@@ -127,7 +127,7 @@ def main():
         es = callbacks.EarlyStopping(monitor='val_auc', mode='max', patience=4,
                                      restore_best_weights=True, verbose=0)
         # sample_weight (not class_weight) so the tune sees the same loss surface
-        # the final-train script does (review N-7).
+        # the final-train script does.
         hist = m.fit(Xtr, ytr, validation_data=(Xva, yva, sw_va), epochs=epochs_t,
                      batch_size=hp['batch'], sample_weight=sw_tr,
                      callbacks=[es], verbose=0)
@@ -160,11 +160,11 @@ def main():
     # Reconstruct the PROCESSED hp dict (ffn_dim = d_token * ffn_mult etc.) —
     # study.best_params holds only RAW suggested params (ffn_mult, no ffn_dim).
     # ml_arch.build_tunable_model reads hp['ffn_dim'], so saving raw best_params
-    # would KeyError downstream (review E-1).
+    # would KeyError downstream.
     best_hp = sample_hp(study.best_trial)
     out = os.path.join(cfg['models_dir'], 'ml1_best.json')
     with open(out, 'w') as f:
-        # key 'hp' — same as 02a/05a (unified by review U-7).  04_train_ml1.py
+        # key 'hp' — same as 02a/05a.  04_train_ml1.py
         # reads bj['hp']; a KeyError is informative, no triple-fallback.
         json.dump(dict(hp=best_hp, best_val_auc=float(study.best_value),
                        n_params=int(study.best_trial.user_attrs.get('n_params', -1)),

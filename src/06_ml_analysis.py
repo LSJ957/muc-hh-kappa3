@@ -113,7 +113,7 @@ def fi_spanet(pt_path, sig_h5, nreps=3):
     def acc(j):
         # `j` is already standardised — pass identity mean/std to run_inference
         # (which always applies `(j-mean)/std` internally) to avoid
-        # double-normalisation in the permutation FI loop (review B-N-2).
+        # double-normalisation in the permutation FI loop.
         _, assign, _ = run_inference(m, j, jet_mean=np.zeros_like(jet_mean),
                                      jet_std=np.ones_like(jet_std), device=device)
         return float((assign == truth).mean())

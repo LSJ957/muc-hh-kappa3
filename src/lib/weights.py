@@ -121,7 +121,7 @@ def kappa_weights(
                 κ values in KAPPA3_XSEC_PB.
     n_gen_per_kappa : optional override for per-source generation statistics.
                 Default uses module-level pc.N_GEN_KAPPA_PER_SLICE (100k), which
-                matches kappa_scan_main / kappa_set2.  Pass 500_000 for the
+                matches kappa_scan_main / kappa_indep.  Pass 500_000 for the
                 high-stat kappa_scan_500k source so its per-event weight is
                 correctly normalised (else events get 5× over-weight).
 

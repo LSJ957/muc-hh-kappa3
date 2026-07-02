@@ -146,7 +146,7 @@ def compute_tda_single(event_data):
     try:
         import ripser
     except ImportError:
-        # Loud, once-per-process warning (review E-2).  Note that
+        # Loud, once-per-process warning.  Note that
         # `compute_tda_single` is dispatched via `multiprocessing.Pool`, so each
         # worker process initialises its own `globals()`; on a clean install
         # missing ripser the warning therefore prints once per worker

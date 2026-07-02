@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""04_train_ml1.py — ML1 (signal vs background) train using Opt1 HPs from best.json.
+"""04_train_ml1.py — ML1 (signal vs background) train using the tuned HPs from best.json.
 Same code drives 3 / 10 TeV; only config differs.
 Reads SPANet assignment from <models_dir>/assign_sigbg_main.npy (from 03)."""
 import os, sys, argparse, json, time
@@ -58,7 +58,7 @@ def main():
                      '`--from-best <path/to/ml1_best.json>`.')
         sys.exit(f'best.json not found: {bp}')
     bj = json.load(open(bp))
-    hp = dict(bj['hp'])   # 02a/04a/05a all save under key 'hp' (review U-7)
+    hp = dict(bj['hp'])   # 02a/04a/05a all save under key 'hp'
     drop = [d for d in args.drop.split(',') if d]
     kept = MA.kept_globals(drop)
     # Reject silent input-dimension drift: if 04a stored a different DEFAULT_DROP
@@ -78,7 +78,7 @@ def main():
 
     # ── data ──
     inputs = cfg['ml_usage']['ml1']['sigbg']
-    # USE_V6_SPLIT needs truth_valid for canonical stratification; cost of loading
+    # SPANET_SHARED_SPLIT needs truth_valid for canonical stratification; cost of loading
     # the bool/int8 truth arrays is tiny so we just always load them.
     sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
     # apply SPANet-A pairing from 03_precompute_pairing
@@ -93,14 +93,14 @@ def main():
     tgt = sb['target_sigbg']; nbt = sb['n_btag_total']
     # NOCUT: no pool filter
     apply_btag_feature_mask = False
-    # USE_V6_SPLIT=1 → stratify on (sig_lab*2 + truth_valid) so 02_train_spanet
+    # SPANET_SHARED_SPLIT=1 → stratify on (sig_lab*2 + truth_valid) so 02_train_spanet
     # (with same env var set) produces an IDENTICAL 70/15/15 partition, making
-    # idx_test truly blind to both SPANet and ML1 (review v5 leak finding).
-    if os.environ.get('USE_V6_SPLIT', '0') == '1':
+    # idx_test truly blind to both SPANet and ML1.
+    if os.environ.get('SPANET_SHARED_SPLIT', '0') == '1':
         from lib.splits import canonical_sigbg_strata
         _strata = canonical_sigbg_strata(tgt, sb['truth_valid'])
         sp = make_split_70_15_15(_strata, seed=cfg['training']['seed'])
-        log(f'  [v6 split] stratify=sig_lab*2+truth_valid (3 strata)')
+        log(f'  [shared split] stratify=sig_lab*2+truth_valid (3 strata)')
     else:
         sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
     log(f'  pool N={sb["N"]:,}  pos_frac={float(tgt.mean()):.4f}  '
@@ -128,7 +128,7 @@ def main():
                                n_globals=n_globals, higgs_dim=7)
     # `weighted_metrics` (not `metrics`) so val_auc is computed with the same
     # sample_weight as the loss — EarlyStopping then monitors a quantity that
-    # actually matches what we're optimising (review v5).  Using `metrics=`
+    # actually matches what we're optimising.  Using `metrics=`
     # alone would compute val_auc unweighted while the loss is weighted, so
     # the "best" checkpoint would be picked on a different criterion than the
     # training objective.
@@ -144,7 +144,7 @@ def main():
     # × class-ratio balance).  Single source: lib.sample_weights — same call
     # used by 04a_tune_ml1.py so Optuna and final-train see the same loss.
     # `n_gen_per_process` comes from the config so a 3rd-party MC set with a
-    # different generation budget is weighted correctly (review V-5).
+    # different generation budget is weighted correctly.
     sigbg_input = cfg['ml_usage']['ml1']['sigbg'][0]
     n_gen_proc  = cfg['inputs'][sigbg_input].get('n_gen_per_process')
     sample_weight_tr, sample_weight_va, cw_ratio = ml1_sample_weights(

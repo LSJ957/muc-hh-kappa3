@@ -48,7 +48,7 @@ def poly4_w68(
     dll_values: np.ndarray,
     n_fine: int = 5000,
 ) -> dict:
-    """4-th order polyfit + Phase-A2 shift + connected-region w68 + R².
+    """4-th order polyfit + shift to the fitted minimum + connected-region w68 + R².
 
     Parameters
     ----------
@@ -66,7 +66,7 @@ def poly4_w68(
       r2            : coefficient of determination of poly4 vs the input scatter
       rmse          : sqrt(mean((dll - poly4(k))²))
       poly_coef     : numpy poly coefficients (highest-power first)
-      poly_min_raw  : polynomial minimum BEFORE the Phase-A2 shift
+      poly_min_raw  : polynomial minimum BEFORE the shift
       touches_boundary : True if the connected region hits the edge of the κ
                       grid — the returned width is then a LOWER BOUND (the
                       true interval extends beyond the scanned range)
@@ -93,7 +93,7 @@ def poly4_w68(
     poly_min_raw = float(df.min())
     k3_min = float(kf[int(df.argmin())])
 
-    # Phase-A2 shift: dll -= dll.min(); clip ≥ 0
+    # Shift to the fitted minimum: dll -= dll.min(); clip ≥ 0
     df_shifted = np.maximum(df - poly_min_raw, 0.0)
     mask = df_shifted < 0.5
 

@@ -62,7 +62,7 @@ def main():
             log(f'  [stale] {nm}: {os.path.basename(out)} older than h5/spanet.pt → recompute')
         # Version B (LL constituent cloud) requires loading ll_cloud per file
         # — previously dropped which would silently mis-pair.  Currently the
-        # active pipeline is Version A so ll_cloud stays None (review N-2).
+        # active pipeline is Version A so ll_cloud stays None.
         with h5py.File(h5p, 'r') as f:
             jets_raw = f['jets'][:].astype(np.float32)
             ll_cloud = f['ll_cloud'][:].astype(np.float32) if is_B and 'll_cloud' in f else None

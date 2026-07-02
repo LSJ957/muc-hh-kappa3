@@ -56,7 +56,7 @@ class HH4bDataset(Dataset):
     def __init__(self, jets, labels_cls, labels_assign, truth_valid, ll_cloud=None):
         # NB: met / met_phi are intentionally NOT stored — they were unused by
         # SPANet.forward / SPANetLoss.forward; carrying them transferred the
-        # tensors to the GPU every batch for no reason (review B-3).
+        # tensors to the GPU every batch for no reason.
         self.jets = torch.from_numpy(jets).float()
         self.labels_cls = torch.from_numpy(labels_cls).long()
         self.labels_assign = torch.from_numpy(labels_assign).long()
@@ -751,7 +751,7 @@ def run_inference(model, jets_raw, jet_mean, jet_std, device,
 
         assign_logits = outputs['assign_logits'].cpu().numpy()
         # numerically stable softmax: shift by per-row max to prevent np.exp overflow
-        # when assignment confidence is very high (review D-4).
+        # when assignment confidence is very high.
         _shifted = assign_logits - assign_logits.max(axis=-1, keepdims=True)
         _exp = np.exp(_shifted)
         assign_probs = _exp / _exp.sum(axis=-1, keepdims=True)

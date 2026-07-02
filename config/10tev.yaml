@@ -76,13 +76,13 @@ inputs:
     target_everytype: 0
     is_signal:        true
 
-  kappa_set2:
-    h5: data/10tev/kappa_set2.h5
+  kappa_indep:
+    h5: data/10tev/kappa_indep.h5
     n_gen_per_kappa: 100000
     roots:
-      - ${data_root}/mm_hhx_kappa_k3_0.4_k2v_1_10tev_set2.root
-      - ${data_root}/mm_hhx_kappa_k3_1.0_k2v_1_10tev_set2.root
-      - ${data_root}/mm_hhx_kappa_k3_1.6_k2v_1_10tev_set2.root
+      - ${data_root}/mm_hhx_kappa_k3_0.4_k2v_1_10tev_indep.root
+      - ${data_root}/mm_hhx_kappa_k3_1.0_k2v_1_10tev_indep.root
+      - ${data_root}/mm_hhx_kappa_k3_1.6_k2v_1_10tev_indep.root
     kappa3: [0.4, 1.0, 1.6]
     target_sigbg:     1
     target_everytype: 0
@@ -118,17 +118,17 @@ ml_usage:
   ml2:
     kappa_low:  0.4
     kappa_high: 1.6
-    source: [kappa_scan_main, kappa_set2]
+    source: [kappa_scan_main, kappa_indep]
 
 dll:
   fit_kappa_grid: [0.2, 0.4, 0.6, 0.8, 0.84, 0.88, 0.92, 0.96, 1.0, 1.04, 1.08, 1.12, 1.16, 1.2, 1.4, 1.6, 1.8]
   # PRIORITY ORDER (first listed wins when multiple sources share a κ value):
-  # set2 first → P3 leak-free at κ∈{0.4,1.0,1.6}
+  # kappa_indep first → independent-sample templates at κ∈{0.4,1.0,1.6} and the κ=1 reference
   # 500k second → high-stat templates at κ∈[0.80,1.20]∩0.04-grid
   # main last → fallback for κ values not covered by the above
-  morph_sources:  [kappa_set2, kappa_scan_500k, kappa_scan_main]
+  morph_sources:  [kappa_indep, kappa_scan_500k, kappa_scan_main]
   anchor:
-    source: kappa_set2
+    source: kappa_indep
     kappa:  1.0
 
 # Optuna HP-search settings.  Re-tuning is driven by `bash run_all.sh --retune-spanet`

@@ -36,7 +36,7 @@ dll:
   fit_kappa_grid: [<float list>]     # κ values to use in DLL morphing + scatter (DEFAULT)
   morph_sources: [<input names>]     # h5(s) feeding per-bin κ²-quadratic fit
   anchor:
-    source: <input name>             # h5 providing P3 leak-free n_A
+    source: <input name>             # h5 providing the independent κ=1 reference n_A
     kappa: <float>                   # κ value of the anchor (usually 1.0)
 
 optuna:
@@ -98,8 +98,8 @@ def _validate(cfg: dict, path: str):
             raise ValueError(f'inputs.{name}: needs "h5" and "roots"')
         if not isinstance(spec['roots'], list) or not spec['roots']:
             raise ValueError(f'inputs.{name}.roots must be a non-empty list')
-    # ml_usage — top-level and per-head required sub-fields (review V4-N3:
-    # silent KeyErrors at runtime are user-hostile; fail loud here).
+    # ml_usage — top-level and per-head required sub-fields (silent KeyErrors
+    # at runtime are user-hostile; fail loud here).
     for key in ('ml1', 'ml2', 'spanet'):
         if key not in cfg['ml_usage']:
             raise ValueError(f'ml_usage.{key} missing')

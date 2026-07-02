@@ -58,7 +58,7 @@ def main():
                      '`--from-best <path/to/ml2_best.json>`.')
         sys.exit(f'best.json not found: {bp}')
     bj = json.load(open(bp))
-    hp = dict(bj['hp'])   # unified key across 02a/04a/05a (review U-7)
+    hp = dict(bj['hp'])   # unified key across 02a/04a/05a
     drop = [d for d in args.drop.split(',') if d]
     kept = MA.kept_globals(drop)
     expected_kept = bj.get('kept_globals')
@@ -132,7 +132,7 @@ def main():
     m = MA.build_tunable_model(jet_attn=True, hp=hp, seed=seed,
                                n_globals=n_globals, higgs_dim=7)
     # weighted_metrics keeps val_auc aligned with the sample_weighted loss
-    # (review v5).  Same rationale as 04_train_ml1.
+    #.  Same rationale as 04_train_ml1.
     m.compile(optimizer=optimizers.AdamW(learning_rate=float(hp['lr']),
                                           weight_decay=float(hp['wd'])),
               loss='binary_crossentropy',

@@ -57,16 +57,18 @@ def build_dataset(cfg, train_inputs, ll=False):
 def make_loaders(jets6, sig_lab, tp, tv, ll_c, batch, seed=42, val_frac=0.15):
     """Stratified train/val split for SPANet.
 
-    Two modes — selected at *call time* via the USE_V6_SPLIT env var:
+    Two modes — selected at *call time* via the SPANET_SHARED_SPLIT env var:
 
-    - **v5 default** (USE_V6_SPLIT not set / "0"):
+    - **own split** (SPANET_SHARED_SPLIT not set / "0", the default):
         SPANet does its own 85/15 train/val split on its joint stratum
         (sig_lab × 2 + truth_valid).  85% train + 15% val, no test fold.
-        This is fine on its own but **leaks** into ML1's 15% test fold,
-        because ML1 chooses an INDEPENDENT 70/15/15 split: SPANet has seen
-        ~85% of ML1's test events during its own training.
+        This maximises SPANet's training statistics, but note that ML1
+        draws an independent 70/15/15 split, so SPANet has seen ~85% of
+        ML1's test events during its own training (the likelihood inputs
+        are protected separately: the κ templates and the κ=1 reference
+        come from samples SPANet never trained on).
 
-    - **v6** (USE_V6_SPLIT="1"):
+    - **shared split** (SPANET_SHARED_SPLIT="1"):
         SPANet uses the SAME 70/15/15 partition as ML1.  It trains on the
         70% idx_train, validates on the 15% idx_val, and never touches the
         15% idx_test.  ML1's test fold is then blind to BOTH SPANet and
@@ -77,11 +79,11 @@ def make_loaders(jets6, sig_lab, tp, tv, ll_c, batch, seed=42, val_frac=0.15):
     balanced across folds.
     """
     import os
-    use_v6 = os.environ.get('USE_V6_SPLIT', '0') == '1'
+    use_shared = os.environ.get('SPANET_SHARED_SPLIT', '0') == '1'
     N = len(jets6)
     full = SE.HH4bDataset(jets6, sig_lab, tp, tv, ll_c)
     strata = sig_lab.astype(np.int64) * 2 + tv.astype(np.int64)
-    if use_v6:
+    if use_shared:
         # Shared 70/15/15 with ML1 (sigbg_main pool) — pick train+val portion,
         # reserve test as a true held-out fold for the whole pipeline.
         from lib.splits import make_split_70_15_15
@@ -203,7 +205,7 @@ def train_and_save(cfg_yaml, hp, out_dir, epochs, batch=1024, device=None):
             f'(val_assign_acc={best_val_acc:.4f}) before save')
 
     # Pair val_metrics in the saved files with the best weights — saving the
-    # last-epoch va_m next to best_state would be a metadata lie (review W-7).
+    # last-epoch va_m next to best_state would be a metadata lie.
     saved_val_metrics = best_va_m if best_va_m is not None else va_m
 
     # final save

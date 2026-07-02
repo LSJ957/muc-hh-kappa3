@@ -125,14 +125,14 @@ def main():
             tf.keras.backend.clear_session(); del m
             raise optuna.TrialPruned(f'n_params={n_pars:,} × {safety_fac} > N_train={N_train:,}')
         # weighted_metrics so val_auc matches the sample_weighted loss
-        # (review v5).  See 04a for the full rationale.
+        #.  See 04a for the full rationale.
         m.compile(optimizer=optimizers.AdamW(learning_rate=hp['lr'], weight_decay=hp['wd']),
                   loss='binary_crossentropy',
                   weighted_metrics=[metrics.AUC(name='auc')])
         es = callbacks.EarlyStopping(monitor='val_auc', mode='max', patience=6,
                                      restore_best_weights=True, verbose=0)
         # sample_weight (not class_weight) so the tune sees the same loss surface
-        # the final-train script does (review N-7).
+        # the final-train script does.
         hist = m.fit(Xtr, ytr, validation_data=(Xva, yva, sw_va), epochs=epochs_t,
                      batch_size=hp['batch'], sample_weight=sw_tr,
                      callbacks=[es], verbose=0)
@@ -162,7 +162,7 @@ def main():
     best_hp = sample_hp(study.best_trial)
     out = os.path.join(cfg['models_dir'], 'ml2_best.json')
     with open(out, 'w') as f:
-        # key 'hp' — same as 02a/04a (unified by review U-7).
+        # key 'hp' — same as 02a/04a.
         json.dump(dict(hp=best_hp, best_val_auc=float(study.best_value),
                        n_params=int(study.best_trial.user_attrs.get('n_params', -1)),
                        safety_factor=safety_fac, n_train=N_train,
