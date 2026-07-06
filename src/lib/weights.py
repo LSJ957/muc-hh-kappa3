@@ -6,10 +6,9 @@ A weight is the expected number of events at the analysis luminosity that this
 MC event represents. Histograms summed with these weights give the expected
 event yield in each bin.
 
-This module is the **only** correct implementation of weight construction in
-the project. Three other files in the old codebase reimplemented this
-incorrectly (e.g. dropped the `bkg_mask` guard). Always
-`from lib.weights import sigbg_weights, kappa_weights` — never copy.
+This module is the single source of truth for weight construction: always
+`from lib.weights import sigbg_weights, kappa_weights` — never re-implement
+the formulas locally (subtle guards like `bkg_mask` are easy to drop).
 """
 from __future__ import annotations
 import numpy as np

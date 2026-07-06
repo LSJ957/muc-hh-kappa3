@@ -109,10 +109,23 @@ def main():
     ml2 = load_model(os.path.join(cfg['models_dir'], 'ml2.keras'), compile=False, safe_mode=False)
 
     # ── 1) Background B from the ML1 test fold, rescaled to the full yield ──
+    # NOTE: assumes a single ml_usage.ml1.sigbg input (as shipped); 04 uses
+    # load_concat over the list, so a multi-input setup needs the same here.
     sb, _ = load_and_repair(cfg, cfg['ml_usage']['ml1']['sigbg'][0])
     tgt = sb['target_sigbg']; nbt = sb['n_btag_total']
     pid = sb['target_everytype']
-    sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
+    # Reconstruct the ML1 split with the SAME recipe as 04: stratified on the
+    # target by default, or on the canonical strata when SPANET_SHARED_SPLIT=1
+    # (the optional aligned-split training mode).
+    if os.environ.get('SPANET_SHARED_SPLIT', '0') == '1':
+        from lib.splits import canonical_sigbg_strata
+        _sbt = load_input(cfg, cfg['ml_usage']['ml1']['sigbg'][0],
+                          load_jets=False, load_truth=True, load_ll_cloud=False)
+        sp = make_split_70_15_15(canonical_sigbg_strata(tgt, _sbt['truth_valid']),
+                                 seed=cfg['training']['seed'])
+        del _sbt
+    else:
+        sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
     # Cross-check the re-derived ML1 test fold against the indices 04 actually
     # used (saved in ml1_scores.npz).  If the split recipe in 04 ever drifts
     # (e.g. the SPANET_SHARED_SPLIT strata), B would silently include ML1
@@ -121,8 +134,10 @@ def main():
     if os.path.exists(_ml1_scores_p):
         _saved = np.load(_ml1_scores_p)['idx_test']
         if not np.array_equal(np.sort(_saved), np.sort(sp['idx_test'])):
-            sys.exit('ML1 test-fold reconstruction disagrees with ml1_scores.npz idx_test — '
-                     'the 04/07 split recipes have drifted; fix before trusting B')
+            sys.exit('ML1 test-fold reconstruction disagrees with ml1_scores.npz idx_test.\n'
+                     'Most likely SPANET_SHARED_SPLIT here differs from the setting used when\n'
+                     'training 04 (set it consistently for the whole chain); otherwise the\n'
+                     '04/07 split recipes have drifted. Fix before trusting B.')
         log('  ML1 test-fold cross-check vs ml1_scores.npz: OK')
     test_mask = np.zeros(sb['N'], dtype=bool); test_mask[sp['idx_test']] = True
     resc = sb['N'] / max(int(test_mask.sum()), 1)            # test-fold rescale (~6.67)
@@ -262,6 +277,10 @@ def main():
                 log(f'    ⚠️  κ={kf:.3f} src={src}: only {n_test} ML2 test events; '
                     f'falling back to the full pool (template retains a small leak)')
             else:
+                # Exact for ml2_btag_cut = -1 (uniform random test fold, as
+                # shipped).  With a btag cut ≥ 0 the fold covers only
+                # btag-passing events while n_full counts the whole slice,
+                # so this rescale would bias the template shape.
                 leak_resc = n_full / n_test    # ≈ 6.7 (test fold ≈ 15%)
                 m = m_test
         if int(m.sum()) < 100:
@@ -295,6 +314,8 @@ def main():
 
     # ── 6) Shift at κ3=1 + fourth-order polynomial fit + CL intervals ──
     i_k1 = int(np.argmin(np.abs(fit_grid - 1.0)))
+    if abs(float(fit_grid[i_k1]) - 1.0) >= KAPPA_MATCH_TOL:
+        sys.exit('fit_kappa_grid does not contain κ=1 — cannot anchor the scan')
     if not np.isfinite(raw_vals[i_k1]):
         sys.exit('no κ=1 scan value — cannot anchor the scan')
     k1_raw = float(raw_vals[i_k1])
@@ -312,10 +333,11 @@ def main():
     coef = np.asarray(res['poly_coef'])
     w95, lo95, hi95, open95 = connected_region(coef, fit_grid[mfit].min(),
                                                fit_grid[mfit].max(), 1.92)
+    _edge = 'fit-window edge' if fwin else 'scan edge'
     log(f'  w68 = {res["w68_connected"]:.4f}  κ ∈ [{res["k3_lo"]:.3f}, {res["k3_hi"]:.3f}]'
-        f'{"  (touches scan edge)" if res["touches_boundary"] else ""}')
+        f'{f"  (interval reaches the {_edge} → open on that side)" if res["touches_boundary"] else ""}')
     log(f'  w95 = {w95:.4f}  κ ∈ [{lo95:.3f}, {hi95:.3f}]'
-        f'{"  (touches scan edge → open)" if open95 else ""}')
+        f'{f"  (interval reaches the {_edge} → open on that side)" if open95 else ""}')
     log(f'  κ̂ = {res["k3_min"]:.3f}   poly4 R² = {res["r2"]:.4f}')
 
     # ── 7) Save ──
@@ -342,7 +364,7 @@ def main():
         f.write(f'\n**68% CL: {res["k3_lo"]:.3f} < κ3 < {res["k3_hi"]:.3f}**'
                 f'   (w68 = {res["w68_connected"]:.4f})\n')
         f.write(f'**95% CL: {lo95:.3f} < κ3 < {hi95:.3f}**'
-                f'{"  (upper edge open within the scan)" if open95 else ""}'
+                f'{"  (interval reaches the fitted range edge → open on that side)" if open95 else ""}'
                 f'   (w95 = {w95:.4f})\n\n')
         f.write('| κ3 | −ΔlnL (raw) | −ΔlnL (shifted) | in fit |\n')
         f.write('|---:|---:|---:|:---:|\n')

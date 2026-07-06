@@ -56,6 +56,11 @@ def load_h5(h5_path: str, *, cols_hl=None, load_jets=True, load_truth=True, load
                                   if 'target_sigbg' in f['hl'] \
                                   else (out['target_everytype'] == 0).astype(np.int8)
         N = len(out['target_everytype'])
+        # PLACEHOLDER ONLY: the h5s produced by this release never contain
+        # hl/spanet_assignment, so this defaults to all-zeros (= pairing
+        # (01|23) for every event).  Every shipped consumer overwrites it
+        # from models/<stage>/assign_<input>.npy (see 07's load_and_repair);
+        # do NOT use this key without doing the same.
         out['spanet_assignment'] = (f['hl/spanet_assignment'][:].astype(np.int8)
                                     if 'spanet_assignment' in f['hl']
                                     else np.zeros(N, dtype=np.int8))
@@ -67,7 +72,8 @@ def load_h5(h5_path: str, *, cols_hl=None, load_jets=True, load_truth=True, load
         if load_ll_cloud and 'll_cloud' in f:
             out['ll_cloud'] = f['ll_cloud'][:].astype(np.float32)
     out['N'] = N
-    # build an id distinct per-kappa for kappa scans (allows event tracing across κ templates)
+    # per-event id, distinct per κ slice — convenience field for event
+    # tracing by re-users (not consumed by the shipped scripts)
     if np.unique(out['kappa3_value']).size > 1:
         out['global_event_id'] = _global_event_id(out['target_everytype'],
                                                   out['kappa3_value'].astype(np.float64))

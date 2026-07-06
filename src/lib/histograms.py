@@ -1,6 +1,6 @@
-"""2D weighted histogram. NO `BIN_EPS` floor at the histogram level — the
-DLL clipping is the only place a positive floor is applied (so external
-consumers can detect true empty bins without confusion).
+"""2D weighted histogram.  No positive floor is applied at the histogram
+level — the only flooring happens inside lib.dll (DLL_EPS), so consumers
+can detect true empty bins without confusion.
 
 Reading: an empty bin returns 0.0, not 1e-12.
 """

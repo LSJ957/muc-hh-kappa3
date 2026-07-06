@@ -61,6 +61,7 @@ def build_inputs_ml1(cfg):
     sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
     assign = np.concatenate([np.load(os.path.join(cfg['models_dir'], f'assign_{nm}.npy'))
                              for nm in inputs]).astype(np.int8)
+    assert len(assign) == sb['N'], 'assign files stale vs h5 — re-run 03'
     rec = recompute_hl_from_assignment(sb['jets'], assign, sb['hl']['met'], sb['met_phi'])
     for k, v in rec.items(): sb['hl'][k] = v
     jc, jb = MA.build_jet_tokens(sb['jets'], sb['met_phi'], False)

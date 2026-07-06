@@ -38,8 +38,10 @@ mkdir -p "$HERE/logs"
 
 ts() { date '+%H:%M:%S'; }
 say() { echo "[$(ts)] >>> $*"; }
-HHML_CONDA_LIB=${HHML_CONDA_LIB:-/path/to/your/conda/envs/<env>/lib}
-PY() { LD_LIBRARY_PATH=$HHML_CONDA_LIB:$LD_LIBRARY_PATH python3 "$@"; }
+# Inject the conda env's runtime libs only when HHML_CONDA_LIB is set
+# (each python step also warns if it is unset — see the script headers).
+export HHML_CONDA_LIB
+PY() { LD_LIBRARY_PATH=${HHML_CONDA_LIB:+$HHML_CONDA_LIB:}$LD_LIBRARY_PATH python3 "$@"; }
 
 # 1) extract
 if (( ! SKIP_EXTRACT )); then

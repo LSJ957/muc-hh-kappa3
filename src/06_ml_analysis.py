@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """06_ml_analysis.py — per-stage ML diagnostics:
     train/val loss·AUC vs epoch (detect overfitting gap)
-    permutation feature importance for ML1, ML2, SPANet on the test fold
+    permutation feature importance for ML1/ML2 on their held-out test fold
+    permutation feature importance for SPANet on ALL truth-valid signal
+      events (IN-SAMPLE: includes SPANet training events — fine for ranking
+      features, do not quote the printed accuracy as out-of-sample)
     HL feature correlation heatmap
 Outputs to analysis/<stage>/."""
 import os, sys, argparse, json, time
@@ -118,7 +121,8 @@ def fi_spanet(pt_path, sig_h5, nreps=3):
                                      jet_std=np.ones_like(jet_std), device=device)
         return float((assign == truth).mean())
     base = acc(jets6n); rng = np.random.RandomState(0); N = len(jets6n)
-    print(f'\n[SPANet] base pairing acc = {base:.4f} (truth_valid {N:,})')
+    print(f'\n[SPANet] base pairing acc = {base:.4f} (truth_valid {N:,}; '
+          f'in-sample — includes SPANet training events)')
     results = []
     for i, nm in enumerate(NAMES):
         drops = []
@@ -158,6 +162,7 @@ def main():
                      load_jets=True, load_truth=False, load_ll_cloud=True)
     assign = np.concatenate([np.load(os.path.join(M, f'assign_{nm}.npy'))
                              for nm in cfg['ml_usage']['ml1']['sigbg']]).astype(np.int8)
+    assert len(assign) == sb['N'], 'assign files stale vs h5 — re-run 03'
     rec = recompute_hl_from_assignment(sb['jets'], assign, sb['hl']['met'], sb['met_phi'])
     for k, v in rec.items(): sb['hl'][k] = v
     jc, jb = MA.build_jet_tokens(sb['jets'], sb['met_phi'], False)

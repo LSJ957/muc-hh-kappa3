@@ -7,11 +7,13 @@ This is a **library module** consumed by `02_train_spanet.py`,
 and `07_dll_scan.py`.  No stand-alone runner — the legacy `train_spanet()`,
 `apply_spanet_and_save()`, `make_plots()`, `main()` were removed 2026-05-28.
 
-Two architecture versions are supported via cfg['version']:
-  • Version A: jet self-attention only (4 jets × jet_input_dim features)
-  • Version B: also conditions on a constituent particle cloud
-                (4 jets × max_const_per_jet × 4 features —
-                 [pT_frac, Δη, Δφ, type], mask channel dropped 2026-06-02)
+Two architecture versions exist via cfg['version']:
+  • Version A: jet self-attention only (4 jets × jet_input_dim features).
+    This is the ONLY version the shipped scripts configure and train.
+  • Version B: additionally conditions on a constituent particle cloud
+    (4 jets × max_const_per_jet × 4 features — [pT_frac, Δη, Δφ, type]).
+    INACTIVE in this release: 02/02a always build Version A; the Version-B
+    code paths are kept as an experimental extension and are untested here.
 
 In the active pipeline 02_train_spanet sets `jet_input_dim=6` (the
 `transform_6` output: log_pt, η, sin_φ, cos_φ, log1p(m/M0), btag).
@@ -31,11 +33,8 @@ from . import physics_constants as pc
 # ═════════════════════════════════════════════════════════════════════════
 # 0.  CONFIGURATION — single source of truth from physics_constants
 # ═════════════════════════════════════════════════════════════════════════
-PAIRINGS                  = list(pc.PAIRINGS_FLAT)
-N_PAIRINGS                = pc.N_PAIRINGS
-M_HIGGS                   = pc.M_HIGGS_GEV
-ASSIGNMENT_DEPENDENT_HL   = list(pc.ASSIGNMENT_DEPENDENT_HL)
-HL_FEATURES_45            = list(pc.HL_FEATURES_45)
+PAIRINGS = list(pc.PAIRINGS_FLAT)
+M_HIGGS  = pc.M_HIGGS_GEV
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -50,7 +49,6 @@ class HH4bDataset(Dataset):
         label_cls     : int — 0=background, 1=signal
         label_assign  : int — pairing index (0,1,2) or -1
         truth_valid   : bool — whether assignment label is usable
-        met           : float32 — for auxiliary features
         ll_cloud      : (40, 4) float32 [Version B only]
     """
     def __init__(self, jets, labels_cls, labels_assign, truth_valid, ll_cloud=None):

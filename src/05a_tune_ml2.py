@@ -62,6 +62,7 @@ def build_inputs_ml2(cfg):
     kp = load_concat(cfg, inputs, load_jets=True, load_truth=False, load_ll_cloud=True)
     assign_all = np.concatenate([np.load(os.path.join(cfg['models_dir'], f'assign_{nm}.npy'))
                                  for nm in inputs]).astype(np.int8)
+    assert len(assign_all) == kp['N'], 'assign files stale vs h5 — re-run 03'
     rec = recompute_hl_from_assignment(kp['jets'], assign_all, kp['hl']['met'], kp['met_phi'])
     for k, v in rec.items(): kp['hl'][k] = v
     k3 = kp['kappa3_value'].astype(np.float64); nbt = kp['n_btag_total']

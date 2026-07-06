@@ -88,8 +88,8 @@ If `HHML_DATA_ROOT` is unset, step 01 fails fast with a clear
 bash run_all.sh 3tev --retune-ml
 bash run_all.sh 10tev --retune-ml
 
-# Subsequent runs (best.json already present)
-bash run_all.sh 3tev
+# Subsequent runs (best.json files already present; skip both Optuna searches)
+bash run_all.sh 3tev --no-retune-spanet
 
 # Flags (run_all.sh)
 #   --skip-extract        skip step 01 (use existing h5)
@@ -103,6 +103,13 @@ bash run_all.sh 3tev
 (luminosity, cross sections); if you run a step script by hand, export it
 yourself (`export PIPELINE_STAGE=10tev`) — see the note at the top of
 `run_all.sh`.
+
+One optional mode switch: `SPANET_SHARED_SPLIT=1` makes SPANet train on the
+same 70/15/15 partition as the downstream classifiers (instead of its own
+85/15 split), so the classifier test fold is blind to both networks. Set it
+consistently for the WHOLE chain (02 through 07); the fold cross-checks in
+step 07 fail loudly on a mixed-mode run. The default (unset) reproduces the
+paper training.
 
 ## Key design choices
 

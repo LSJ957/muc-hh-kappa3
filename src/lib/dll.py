@@ -1,17 +1,16 @@
 """Asimov DLL + connected-region w68 extractor.
 
-Single source of truth for w68 extraction. NEVER use max-min span across
-multiple disjoint <0.5 regions (that was the latent bug in `lib.py:extract_w68`
-of the old codebase). Always use the connected interval containing the
-global minimum.
+Single source of truth for w68 extraction.  The width is ALWAYS the
+connected <0.5 interval containing the fitted minimum, never the max-min
+span across disjoint regions (which double-counts secondary wiggles).
 
 Entry point:
   • `poly4_w68(k, dll)` — 4th-order polyfit then connected width, for the
                           sparse per-κ scan (raw per-κ Asimov points).  This
                           is the extractor behind the paper's headline w68.
 
-Both honour the same convention: shift = min(DLL inside fit_range), threshold
-0.5, connected region containing the in-range argmin.
+Convention: shift = fitted polynomial minimum, threshold 0.5 (68%) with the
+connected region grown from the argmin.
 """
 from __future__ import annotations
 import numpy as np
@@ -54,7 +53,8 @@ def poly4_w68(
 
     Returns dict with keys:
       w68_connected : width of the contiguous <0.5 region containing argmin
-      w68_canonical : raw max-min span of mask, for backwards compatibility
+      w68_canonical : raw max-min span of the <0.5 mask (diagnostic only;
+                      double-counts disjoint regions — do not quote)
       k3_lo, k3_hi  : connected-region boundaries
       k3_min        : κ at the polyfit minimum
       n_regions     : number of disjoint <0.5 regions (diagnostic; if >1 the

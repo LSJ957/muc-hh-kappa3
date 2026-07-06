@@ -1,12 +1,13 @@
 """Stratified 70/15/15 train/val/test split.
 
 Critical design choices:
-  - test fold is hold-out from the model's perspective: trainer never sees test
-    rows for fit/early-stopping. Stored in score npz as a mask so the evaluator
-    knows which rows are test.
-  - random_state is **a single integer**: pass `seed=42 + bag_idx` for bagging so
-    each bag member sees a different train/val/test partition. This recovers
-    data-resampling noise that the old code lost by hardcoding random_state=42.
+  - test fold is hold-out from the model's perspective: the trainer never sees
+    test rows for fit/early-stopping.  04/05 store the resulting `idx_test`
+    index array in their score npz so downstream steps (06, 07) can recover
+    exactly the same fold.
+  - random_state is a single integer taken from `training.seed` in the config;
+    passing a different seed yields an independent partition (useful for
+    resampling studies).
   - stratification is on `sb_target` (sig vs bg). Stratification on per-process
     `target_everytype` would be ideal but rare bkg processes can have <2
     events per fold; sb_target is a safer choice.
@@ -54,18 +55,16 @@ def make_split_70_15_15(
 
 
 def canonical_sigbg_strata(sig_lab, truth_valid):
-    """Canonical stratification array shared by SPANet (02) and ML1 (04) on
-    the sigbg_main pool — guarantees they produce IDENTICAL 70/15/15 splits
-    so SPANet's training/val never leaks into ML1's test fold.
+    """Canonical stratification array for the sigbg pool.  02 uses it for
+    its own train/val stratification in every mode; 04/04a (and 07's fold
+    reconstruction) switch to it when SPANET_SHARED_SPLIT=1, which makes
+    SPANet and ML1 draw one IDENTICAL 70/15/15 partition so SPANet's
+    training/val never overlaps ML1's test fold.
 
-    Three effective strata:
+    Three effective strata (= sig_lab*2 + truth_valid):
       0  background           (sig_lab=0, tv=False)
-      1  signal w/o truth     (sig_lab=1, tv=False; assign loss N/A)
+      2  signal w/o truth     (sig_lab=1, tv=False; assign loss N/A)
       3  signal w/ truth      (sig_lab=1, tv=True ; assign loss applies)
-    (combination sig=0/tv=True does not exist by construction.)
-
-    Used by both 02_train_spanet and 04_train_ml1 *only* when the
-    environment variable SPANET_SHARED_SPLIT=1 is set — by default each
-    stage draws its own split."""
+    (sig=0/tv=True, i.e. stratum 1, does not exist by construction.)"""
     return np.asarray(sig_lab).astype(np.int64) * 2 + \
            np.asarray(truth_valid).astype(np.int64)

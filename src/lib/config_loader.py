@@ -2,8 +2,10 @@
 
 Config schema (per stage)
 ─────────────────────────
-stage:           '3tev' or '10tev'
+stage:           '3tev' or '10tev'  (must match the PIPELINE_STAGE env var)
 sqrts_TeV:       3.0 or 10.0
+data_root:       OPTIONAL default for the ${data_root} placeholder in roots
+                 (the HHML_DATA_ROOT env var takes precedence)
 data_dir:        relative/absolute path where extracted h5s go
 models_dir:      relative/absolute path for model weights
 analysis_dir:    relative/absolute path for FI/correlation/history outputs
@@ -16,11 +18,16 @@ inputs:                              # named input registry
       - /abs/path/to/file_1.root
       - /abs/path/to/file_2.root
     kappa3:    null | float | list   # ground-truth κ3 to stamp per file
-                                       null → use root meta; float → all events get this value;
+                                       null → stored as NaN (background files);
+                                       float → all events get this value;
                                        list of floats (len==len(roots)) → per-file value
     target_sigbg:    1 | 0 | per-file list  # signal=1, bg=0
     target_everytype: 0..7 | per-file list  # subprocess id
     is_signal: bool | per-file list
+    n_gen_per_process: int           # OPTIONAL: generated events per process
+                                     # (weight normalisation; default in
+                                     # physics_constants)
+    n_gen_per_kappa: int             # OPTIONAL: generated events per κ slice
 
 ml_usage:
   ml1:
@@ -43,26 +50,26 @@ dll:
     source: <input name>             # h5 providing the independent κ=1 reference n_A
     kappa: <float>                   # κ value of the reference (usually 1.0)
 
-optuna:
-  spanet:
-    enabled: true|false
+optuna:                              # NOTE: whether a tuner RUNS is decided by
+  spanet:                            # the run_all.sh flags, not by any yaml key
     n_trials: int
     epochs_per_trial: int
     safety_factor: float             # prune trial if n_params × k > N_truth_valid_train
                                      # (uses truth-valid subset, NOT total sigbg). Default 2.0.
   ml1:
-    enabled: false                   # default skip (use existing best.json)
-    from_best: path/to/best.json     # path used when enabled=false (load HP)
+    from_best: path/to/best.json     # fallback HP file when no local best.json
+                                     # exists ('__none__' = fail with a message)
     n_trials: int
+    epochs_per_trial: int
     safety_factor: float
   ml2: ... same as ml1
 
 training:
-  seed: 42
-  split: [0.70, 0.15, 0.15]          # train/val/test
+  seed: 42                           # single seed for every split + trainer
+  split: [0.70, 0.15, 0.15]          # 70/15/15 fixed in lib/splits.py;
+                                     # only split[1] (SPANet val frac) is read
   epochs_final: int                  # both stages
-  batch_choices: [int, int]
-  ml2_btag_cut: int                  # n_btag_total >= this for ML2 pool
+  ml2_btag_cut: int                  # n_btag_total >= this for ML2 pool (-1 = off)
 """
 import os
 import yaml

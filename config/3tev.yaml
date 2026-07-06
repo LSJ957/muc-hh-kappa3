@@ -116,8 +116,9 @@ ml_usage:
 dll:
   fit_kappa_grid: [0.2, 0.4, 0.6, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4, 1.6, 1.8]
   # PRIORITY ORDER (first listed wins when multiple sources share a κ value):
-  # kappa_indep first: at κ∈{0.4,1.0,1.6} the templates and the κ=1 reference
-  # come from a sample independent of the classifier training; else kappa_scan_main
+  # kappa_indep first: the κ=1 reference is fully training-independent; at the
+  # ML2 training κ (0.4/1.6) the kappa_indep events partly enter ML2 training,
+  # so 07 additionally restricts those templates to ML2's test fold (rescaled)
   template_sources:  [kappa_indep, kappa_scan_main]
   anchor:
     source: kappa_indep
@@ -147,7 +148,7 @@ optuna:
 
 training:
   seed: 42
-  split: [0.70, 0.15, 0.15]
+  split: [0.70, 0.15, 0.15]   # 70/15/15 is fixed in lib/splits.py; only
+                              # split[1] (SPANet val fraction) is read by 02a
   epochs_final: 55
-  batch_choices: [512, 1024]
   ml2_btag_cut: -1            # 2026-05-27: NO BTAG cut at training (κ-irrelevant)

@@ -24,12 +24,17 @@ def render_dll(npz_path, out_path, stage_label, color):
     w68 = float(R['w68'])
     fwin = R['fit_window']
 
-    # Display curve anchored at κ3=1 so it shares the scatter's convention
-    # (the CL bands come from the fitted-minimum convention in 07).
+    # Display curve anchored at κ3=1 so it passes through the scan points.
+    # The CL bands come from 07's fitted-minimum convention, so the curve's
+    # crossings of the 0.5/1.92 dotted lines can differ from the band edges
+    # by the (small) offset poly(κ=1) − poly_min; printed below for the
+    # record.  For the shipped fits the offset is ≲0.01 in −ΔlnL.
     kfin_lo = fwin[0] if fwin.size else fit_grid.min()
     kfin_hi = fwin[1] if fwin.size else fit_grid.max()
     kf = np.linspace(kfin_lo, kfin_hi, 2001)
     sh = np.maximum(np.polyval(coef, kf) - np.polyval(coef, 1.0), 0.0)
+    _off = float(np.polyval(coef, 1.0) - np.polyval(coef, kf).min())
+    print(f'  [{stage_label}] display-anchor offset poly(1)-poly_min = {_off:+.4f}')
 
     fig, a = plt.subplots(figsize=(5.2, 3.6))
     a.axvspan(lo95, hi95, color=color, alpha=0.10, zorder=1)

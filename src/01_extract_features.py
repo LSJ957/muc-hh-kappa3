@@ -7,7 +7,10 @@ target_sigbg/target_everytype/kappa3/is_signal as specified), concatenates the
 per-file results, and writes one h5 per input via `extract_engine.save_h5`.
 
 Identical code drives 3 TeV and 10 TeV — only the config differs.
-Per-root npz cache → re-running is cheap and resumable.
+Per-root npz cache → re-running is cheap and resumable.  The cache is
+validated against the current roots list and labels, but NOT against the
+.root file content: if you regenerate a .root in place under the same
+name, re-run with --force.
 
 Usage
 ─────

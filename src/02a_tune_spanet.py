@@ -130,14 +130,22 @@ def main():
         with h5py.File(cfg['inputs'][nm]['h5'], 'r') as f:
             n_total += int(f['hl/target_sigbg'].shape[0])
             n_tv    += int(f['truth_valid'][:].sum())
-    n_train = int(round(n_tv * (1.0 - val_frac)))    # truth_valid × (1 - SPANet val_frac)
+    # truth_valid × (1 - SPANet val_frac); under SPANET_SHARED_SPLIT=1 the
+    # actual train fraction is 0.70, making this cap ~20% loose (conservative
+    # direction would require the shared-mode fraction here).
+    n_train = int(round(n_tv * (1.0 - val_frac)))
     log(f'safety_factor={safety_fac} on n_train(truth_valid)={n_train:,}  '
         f'(total sigbg = {n_total:,}, truth_valid fraction = {100*n_tv/max(n_total,1):.1f}%)  '
         f'→ max_params ≈ {int(n_train / safety_fac):,}')
 
     objective, _ = objective_factory(args.config, n_train, safety_fac, ept)
 
-    sampler = optuna.samplers.TPESampler(seed=cfg['training']['seed'])
+    # Seed torch/numpy so per-trial weight init, dropout and loader shuffling
+    # are reproducible (02_train_spanet seeds the final training the same way).
+    import torch
+    _seed = int(cfg['training']['seed'])
+    torch.manual_seed(_seed); torch.cuda.manual_seed_all(_seed); np.random.seed(_seed)
+    sampler = optuna.samplers.TPESampler(seed=_seed)
     pruner  = optuna.pruners.MedianPruner(n_warmup_steps=max(1, ept // 4))
     study = optuna.create_study(direction='maximize', sampler=sampler, pruner=pruner)
     t0 = time.time()

@@ -142,13 +142,12 @@ def main():
     if len(ytr) < n_pars:
         log(f'  ⚠️  OVER-PARAMETERISED ({len(ytr):,} events < {n_pars:,} params); reliable training relies on dropout/wd/early-stop')
 
-    # ── per-event physics weights ──
-    # For ML2 the two classes are both signal events at different κ₃; the
-    # per-event weight is σ(κ₃) × BR² × LUMI / N_gen which is essentially
-    # constant within each κ slice but differs *between* slices (κ=0.4 vs
-    # κ=1.6).  Carrying this weight tells the model how to weigh the two
-    # endpoints relative to the analysis-time event yield rather than the
-    # naïve per-class count.
+    # ── per-event sample weights ──
+    # Each ML2 class is a single κ slice, so the physics weight
+    # σ(κ₃)·BR²·LUMI/N_gen is constant within a class and the per-class mean
+    # normalisation in lib.sample_weights maps it to exactly 1: the recipe
+    # reduces to plain class balancing.  It is kept for uniformity with ML1
+    # (where the per-process weights DO survive the normalisation).
     k3_pool  = kp['kappa3_value'][idx]
     nbt_pool = kp['n_btag_total'][idx]
     sample_weight_tr, sample_weight_va, cw_ratio = ml2_sample_weights(

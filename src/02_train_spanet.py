@@ -5,8 +5,9 @@
 Reads HPs from `<models_dir>/spanet_best.json` (written by 02a_tune_spanet
 or via `--from-best`) and retrains the final model from them.  Optuna HP
 search is **not** invoked from here — run 02a separately, or use
-`run_all.sh --retune-spanet`.  Configures Version A or Version B according
-to the `ll_input` HP in the best.json (default A).
+`run_all.sh --retune-spanet`.  The shipped configuration is Version A
+(jet tokens only); the Version-B constituent-cloud pathway in
+lib/spanet_engine.py is inactive in this release.
 
 Outputs:
   models/<stage>/spanet.pt                    final weights + cfg + jet_mean/std
@@ -82,7 +83,8 @@ def make_loaders(jets6, sig_lab, tp, tv, ll_c, batch, seed=42, val_frac=0.15):
     use_shared = os.environ.get('SPANET_SHARED_SPLIT', '0') == '1'
     N = len(jets6)
     full = SE.HH4bDataset(jets6, sig_lab, tp, tv, ll_c)
-    strata = sig_lab.astype(np.int64) * 2 + tv.astype(np.int64)
+    from lib.splits import canonical_sigbg_strata
+    strata = canonical_sigbg_strata(sig_lab, tv)   # single source of truth
     if use_shared:
         # Shared 70/15/15 with ML1 (sigbg_main pool) — pick train+val portion,
         # reserve test as a true held-out fold for the whole pipeline.
@@ -196,7 +198,7 @@ def train_and_save(cfg_yaml, hp, out_dir, epochs, batch=1024, device=None):
             best_val_acc = va_m['assign_acc']
             best_epoch   = ep
             best_state   = copy.deepcopy(model.state_dict())
-            best_va_m    = dict(va_m)    # snapshot to keep metrics paired with weights (W-7)
+            best_va_m    = dict(va_m)    # snapshot keeps metrics paired with the saved weights
 
     # ── restore best weights before saving (rather than keeping the last epoch's) ──
     if best_state is not None:

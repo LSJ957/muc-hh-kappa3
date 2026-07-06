@@ -48,6 +48,8 @@ def main():
     is_B = spcfg.get('version') == 'B'
     targets = [args.only] if args.only else list(cfg['inputs'])
     for nm in targets:
+        if nm not in cfg['inputs']:
+            sys.exit(f'unknown input "{nm}" — declared: {list(cfg["inputs"])}')
         h5p = cfg['inputs'][nm]['h5']
         out = os.path.join(cfg['models_dir'], f'assign_{nm}.npy')
         if os.path.exists(out):

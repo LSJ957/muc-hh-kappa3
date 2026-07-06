@@ -1,9 +1,8 @@
 """Weighted-quantile bin edges for 2D template histograms.
 
-Used by the analysis evaluator to make d2 bin edges that put approximately
-equal weighted count in each bin. d1 uses uniform bins on [0, 1] because the
-ML1 sigmoid output is by construction in [0, 1] and approximately uniform on
-that range.
+Used by 07_dll_scan to make d2 bin edges that put approximately equal
+weighted count in each bin.  d1 uses uniform bins on [0, 1] by convention
+(the ML1 sigmoid output is bounded there).
 
 Why we don't just use `np.quantile`: the calibration set is signal κ=1 + bkg
 test, weighted by physics weights, not the empirical CDF of all events.

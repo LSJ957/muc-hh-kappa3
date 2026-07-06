@@ -1,7 +1,8 @@
 """Shared jet-feature transformation: raw (pT, η, φ, m, btag, ...) → 6 features
-(log_pt, η, sin_φ, cos_φ, log1p(m/M0), btag) used identically by SPANet AND the
-ML1/ML2 jet-token stream.  This guarantees the same numerical pre-processing
-across the entire analysis chain."""
+(log_pt, η, sin_φ, cos_φ, log1p(m/M0), btag).  SPANet consumes `transform_6`
+directly; `ml_arch.build_jet_tokens` re-implements the same five continuous
+transforms for its token layout (verified numerically identical — if you edit
+M0 or a transform here, mirror it there)."""
 import numpy as np
 
 M0 = 5.0   # log1p(m/M0) reference mass [GeV]

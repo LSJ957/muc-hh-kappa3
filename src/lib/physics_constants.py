@@ -65,8 +65,10 @@ HL_FEATURES_45 = (
 )
 assert len(HL_FEATURES_45) == 45, f'Expected 45 HL features, got {len(HL_FEATURES_45)}'
 
-# Subset that DOES depend on the SPANet jet→Higgs assignment.  Used by
-# recompute_hl_from_assignment to know which fields to overwrite.
+# Subset that DOES depend on the SPANet jet→Higgs assignment.  Reference
+# documentation: spanet_engine.recompute_hl_from_assignment returns exactly
+# these keys (it hard-codes them; this tuple is the audited list to compare
+# against when editing either side).
 ASSIGNMENT_DEPENDENT_HL = (
     'H1_pt', 'H1_m', 'H2_pt', 'H2_m', 'H1_nbtag', 'H2_nbtag',
     'dR_H1H2', 'mHH', 'pT_HH', 'XHH', 'dphi_HH_met', 'mT_HH_met',
