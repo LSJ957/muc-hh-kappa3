@@ -130,10 +130,7 @@ def main():
         with h5py.File(cfg['inputs'][nm]['h5'], 'r') as f:
             n_total += int(f['hl/target_sigbg'].shape[0])
             n_tv    += int(f['truth_valid'][:].sum())
-    # truth_valid × (1 - SPANet val_frac); under SPANET_SHARED_SPLIT=1 the
-    # actual train fraction is 0.70, making this cap ~20% loose (conservative
-    # direction would require the shared-mode fraction here).
-    n_train = int(round(n_tv * (1.0 - val_frac)))
+    n_train = int(round(n_tv * (1.0 - val_frac)))    # truth_valid × (1 − val_frac)
     log(f'safety_factor={safety_fac} on n_train(truth_valid)={n_train:,}  '
         f'(total sigbg = {n_total:,}, truth_valid fraction = {100*n_tv/max(n_total,1):.1f}%)  '
         f'→ max_params ≈ {int(n_train / safety_fac):,}')

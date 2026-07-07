@@ -55,11 +55,7 @@ def make_split_70_15_15(
 
 
 def canonical_sigbg_strata(sig_lab, truth_valid):
-    """Canonical stratification array for the sigbg pool.  02 uses it for
-    its own train/val stratification in every mode; 04/04a (and 07's fold
-    reconstruction) switch to it when SPANET_SHARED_SPLIT=1, which makes
-    SPANet and ML1 draw one IDENTICAL 70/15/15 partition so SPANet's
-    training/val never overlaps ML1's test fold.
+    """Stratification array for the SPANet train/val split (02).
 
     Three effective strata (= sig_lab*2 + truth_valid):
       0  background           (sig_lab=0, tv=False)

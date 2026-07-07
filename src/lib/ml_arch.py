@@ -159,7 +159,7 @@ def build_tunable_model(jet_attn: bool, hp: dict, seed=42, n_globals=12, higgs_d
     inp_ht   = keras.Input(shape=(2, higgs_dim), name='higgs_tok')
     inp_gnt  = keras.Input(shape=(n_globals,),   name='globals_non_tda')
     inp_gtda = keras.Input(shape=(5,),    name='globals_tda')
-    inp_llc  = keras.Input(shape=(40, 4), name='ll_cloud')  # mask channel dropped 2026-06-02
+    inp_llc  = keras.Input(shape=(40, 4), name='ll_cloud')
 
     # ── jet branch ──
     if jet_attn:

@@ -5,9 +5,7 @@
 Reads HPs from `<models_dir>/spanet_best.json` (written by 02a_tune_spanet
 or via `--from-best`) and retrains the final model from them.  Optuna HP
 search is **not** invoked from here — run 02a separately, or use
-`run_all.sh --retune-spanet`.  The shipped configuration is Version A
-(jet tokens only); the Version-B constituent-cloud pathway in
-lib/spanet_engine.py is inactive in this release.
+`run_all.sh --retune-spanet`.
 
 Outputs:
   models/<stage>/spanet.pt                    final weights + cfg + jet_mean/std
@@ -55,46 +53,23 @@ def build_dataset(cfg, train_inputs):
 
 
 def make_loaders(jets6, sig_lab, tp, tv, batch, seed=42, val_frac=0.15):
-    """Stratified train/val split for SPANet.
+    """Stratified 85/15 train/val split for SPANet.
 
-    Two modes — selected at *call time* via the SPANET_SHARED_SPLIT env var:
-
-    - **own split** (SPANET_SHARED_SPLIT not set / "0", the default):
-        SPANet does its own 85/15 train/val split on its joint stratum
-        (sig_lab × 2 + truth_valid).  85% train + 15% val, no test fold.
-        This maximises SPANet's training statistics, but note that ML1
-        draws an independent 70/15/15 split, so SPANet has seen ~85% of
-        ML1's test events during its own training (the likelihood inputs
-        are protected separately: the κ templates and the κ=1 reference
-        come from samples SPANet never trained on).
-
-    - **shared split** (SPANET_SHARED_SPLIT="1"):
-        SPANet uses the SAME 70/15/15 partition as ML1.  It trains on the
-        70% idx_train, validates on the 15% idx_val, and never touches the
-        15% idx_test.  ML1's test fold is then blind to BOTH SPANet and
-        ML1, eliminating the train→test leak.
-
-    In both modes the stratum is `sig_lab × 2 + truth_valid` so the three
-    relevant subpopulations (bg, signal-no-truth, signal-truth-valid) stay
-    balanced across folds.
+    SPANet splits on the joint stratum `sig_lab × 2 + truth_valid` so the
+    three subpopulations (bg, signal-without-truth, signal-with-truth) stay
+    balanced across folds.  There is no SPANet test fold: the pairing
+    network is an upstream feature-builder, and the likelihood inputs are
+    protected downstream (the κ templates and the κ=1 reference come from
+    samples SPANet never trained on, and the classifier folds are held out
+    separately).
     """
-    import os
-    use_shared = os.environ.get('SPANET_SHARED_SPLIT', '0') == '1'
     N = len(jets6)
     full = SE.HH4bDataset(jets6, sig_lab, tp, tv)
     from lib.splits import canonical_sigbg_strata
     strata = canonical_sigbg_strata(sig_lab, tv)   # single source of truth
-    if use_shared:
-        # Shared 70/15/15 with ML1 (sigbg_main pool) — pick train+val portion,
-        # reserve test as a true held-out fold for the whole pipeline.
-        from lib.splits import make_split_70_15_15
-        sp = make_split_70_15_15(strata, seed=seed)
-        idx_train = sp['idx_train']
-        idx_val   = sp['idx_val']
-    else:
-        idx_train, idx_val = train_test_split(
-            np.arange(N), test_size=val_frac, random_state=seed, stratify=strata,
-        )
+    idx_train, idx_val = train_test_split(
+        np.arange(N), test_size=val_frac, random_state=seed, stratify=strata,
+    )
     tr_ds = Subset(full, idx_train.tolist())
     va_ds = Subset(full, idx_val.tolist())
     return DataLoader(tr_ds, batch_size=batch, shuffle=True,  num_workers=0, drop_last=True), \
@@ -104,7 +79,7 @@ def make_loaders(jets6, sig_lab, tp, tv, batch, seed=42, val_frac=0.15):
 def build_cfg_from_hp(hp: dict, n_jet=4, epochs=20) -> dict:
     """Translate a flat HP dict (jet_embed_dim, n_attn_heads, n_attn_layers,
     dropout, lr, wd) into the cfg dict the engine's SPANet/SPANetLoss/
-    get_lr_scheduler classes expect.  Defaults follow the existing SPANet-A."""
+    get_lr_scheduler classes expect."""
     embed = int(hp.get('jet_embed_dim', hp.get('embed_dim', 64)))
     return dict(
         jet_input_dim      = 6,
@@ -128,7 +103,6 @@ def build_cfg_from_hp(hp: dict, n_jet=4, epochs=20) -> dict:
         # optimizer / scheduler
         lr                 = float(hp.get('lr', 1e-3)),
         weight_decay       = float(hp.get('wd', 1e-4)),
-        lr_schedule        = 'cosine',
         warmup_epochs      = max(1, int(round(float(hp.get('warmup_frac', 0.10)) * epochs))),
         epochs             = epochs,
         batch_size         = int(hp.get('batch', 1024)),

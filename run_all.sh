@@ -7,16 +7,12 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 STAGE=${1:?usage: bash run_all.sh {3tev|10tev}  [--retune-spanet] [--no-retune-spanet] [--retune-ml] [--skip-extract] [--force-extract]}
 shift || true
 
-# CRITICAL: lib/physics_constants.py reads PIPELINE_STAGE at import time and
-# defaults to '3tev' silently if unset.  Without this export, a `bash run_all.sh
-# 10tev` run would use 3 TeV LUMI (1000 fb⁻¹) and 3 TeV xsec values on 10 TeV
-# data → wildly wrong DLL/w68 with no error message.  Fixed 2026-05-28.
 case "$STAGE" in
-  3tev|10tev) export PIPELINE_STAGE="$STAGE" ;;
+  3tev|10tev) ;;
   *) echo "STAGE must be '3tev' or '10tev', got '$STAGE'"; exit 1 ;;
 esac
 
-RETUNE_SPANET=1   # default ON for SPANet (6-feature, no prior best.json)
+RETUNE_SPANET=1   # default ON for SPANet
 RETUNE_ML=0       # default OFF for ML1/ML2 (require models/<stage>/ml{1,2}_best.json
                   # from a prior 04a/05a run, or pass --retune-ml to generate one)
 SKIP_EXTRACT=0

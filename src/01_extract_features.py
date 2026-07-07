@@ -76,7 +76,6 @@ def extract_one_root(root_path, cache_file, label_sigbg, label_everytype, kappa3
         label_sigbg=label_sigbg,
         label_everytype=label_everytype,
         kappa3_value=k3val,
-        diagram_label=-1,
         is_hh_signal=bool(is_signal),
     )
     if res is None or len(res['hl_dict'][list(res['hl_dict'])[0]]) == 0:

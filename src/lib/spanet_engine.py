@@ -5,7 +5,7 @@ training/eval helpers, and post-training HL recompute / inference utilities.
 This is a **library module** consumed by `02_train_spanet.py`,
 `03_precompute_pairing.py`, `04_train_ml1.py`, `05_train_ml2.py`, `06_ml_analysis.py`
 and `07_dll_scan.py`.  No stand-alone runner — the legacy `train_spanet()`,
-`apply_spanet_and_save()`, `make_plots()`, `main()` were removed 2026-05-28.
+`apply_spanet_and_save()`, `make_plots()`, `main()` are not part of this release.
 
 Architecture: jet self-attention over the 4 jet tokens
 (4 jets × jet_input_dim features), followed by a symmetric pairing head
@@ -279,19 +279,12 @@ class SPANetLoss(nn.Module):
     L_cls:    Binary CE for signal vs background
     L_mass:   Huber loss on predicted Higgs masses (only for truth_valid signal)
     """
-    def __init__(self, cfg, class_weights=None):
+    def __init__(self, cfg):
         super().__init__()
         self.lambda_assign = cfg['lambda_assign']
         self.lambda_cls = cfg['lambda_cls']
         self.lambda_mass = cfg['lambda_mass']
-
-        if class_weights is not None:
-            self.cls_loss_fn = nn.BCEWithLogitsLoss(
-                pos_weight=torch.tensor([class_weights])
-            )
-        else:
-            self.cls_loss_fn = nn.BCEWithLogitsLoss()
-
+        self.cls_loss_fn = nn.BCEWithLogitsLoss()
         self.assign_loss_fn = nn.CrossEntropyLoss(reduction='none')
         self.mass_loss_fn = nn.HuberLoss(delta=0.5)
 
@@ -399,7 +392,7 @@ class SPANetLoss(nn.Module):
 # 4.  TRAINING LOOP
 # ═════════════════════════════════════════════════════════════════════════
 def get_lr_scheduler(optimizer, cfg, n_steps_per_epoch):
-    """Create learning rate scheduler with warmup."""
+    """Warmup + cosine-decay learning-rate scheduler."""
     warmup_steps = cfg['warmup_epochs'] * n_steps_per_epoch
     total_steps = cfg['epochs'] * n_steps_per_epoch
 
@@ -407,15 +400,7 @@ def get_lr_scheduler(optimizer, cfg, n_steps_per_epoch):
         if step < warmup_steps:
             return float(step) / float(max(1, warmup_steps))
         progress = float(step - warmup_steps) / float(max(1, total_steps - warmup_steps))
-        if cfg['lr_schedule'] == 'cosine':
-            return 0.5 * (1.0 + np.cos(np.pi * progress))
-        else:  # step
-            if progress < 0.5:
-                return 1.0
-            elif progress < 0.8:
-                return 0.1
-            else:
-                return 0.01
+        return 0.5 * (1.0 + np.cos(np.pi * progress))   # cosine decay
 
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 

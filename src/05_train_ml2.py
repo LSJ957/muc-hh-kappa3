@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """05_train_ml2.py — ML2 (binary κ-low vs κ-high) train using HPs from
 best.json.  Loads h5(s) listed in ml_usage.ml2.source, filters events by
-kappa3_value ∈ {kappa_low, kappa_high} (config).  BTAG pool filter is
-controlled by `training.ml2_btag_cut` in the config:
-   -1 (default, current policy 2026-05-27) = no cut, train on the full pool;
-   ≥0                                      = require n_btag_total ≥ that value.
-Trains and saves ml2.keras + best.json + history + scores."""
+kappa3_value ∈ {kappa_low, kappa_high} (config), and trains on the full
+filtered pool.  Saves ml2.keras + best.json + history + scores."""
 import os, sys, argparse, json, time
 _LIB = os.environ.get('HHML_CONDA_LIB')
 if _LIB is None:
@@ -72,14 +69,7 @@ def main():
     n_globals = len(kept)
     k_low  = float(cfg['ml_usage']['ml2']['kappa_low'])
     k_high = float(cfg['ml_usage']['ml2']['kappa_high'])
-    # 2026-05-27: default to NO BTAG cut at training (κ-irrelevant feature; gives ×1.56
-    # more data with no loss on BTAG≥3 inference subset). Current policy:
-    # ml2_btag_cut: -1 in config; set it to ≥0 to restore the legacy BTAG cut.
-    btag_cut = int(cfg['training'].get('ml2_btag_cut', -1))
-    if btag_cut < 0:
-        log(f'=== ML2 TRAIN  stage={cfg["stage"]}  binary κ {k_low} vs {k_high}  (no BTAG cut at training) ===')
-    else:
-        log(f'=== ML2 TRAIN  stage={cfg["stage"]}  binary κ {k_low} vs {k_high}  BTAG≥{btag_cut} ===')
+    log(f'=== ML2 TRAIN  stage={cfg["stage"]}  binary κ {k_low} vs {k_high} ===')
     log(f'HP from {bp}: {hp}')
     log(f'dropping globals {drop} → kept {n_globals}/{len(MA.GLOBALS_NON_TDA)}')
 
@@ -97,18 +87,13 @@ def main():
     k3 = kp['kappa3_value'].astype(np.float64)
     m_lo = np.abs(k3 - k_low)  < KAPPA_MATCH_TOL
     m_hi = np.abs(k3 - k_high) < KAPPA_MATCH_TOL
-    nbt = kp['n_btag_total']
-    if btag_cut < 0:
-        sel = (m_lo | m_hi)
-    else:
-        sel = (m_lo | m_hi) & (nbt >= btag_cut)
+    sel = (m_lo | m_hi)
     if not sel.any():
         sys.exit(f'no events match κ_low={k_low} or κ_high={k_high}')
     idx = np.where(sel)[0]
     y_pool = np.where(m_hi[sel], 1.0, 0.0).astype(np.float32)
-    cut_str = f'after BTAG≥{btag_cut}' if btag_cut >= 0 else '(no BTAG cut)'
-    log(f'  pool: κ={k_low} {int(m_lo.sum()):,}  κ={k_high} {int(m_hi.sum()):,}  '
-        f'{cut_str} → {len(idx):,}')
+    log(f'  pool: κ={k_low} {int(m_lo.sum()):,}  κ={k_high} {int(m_hi.sum()):,} '
+        f'→ {len(idx):,}')
 
     sp = make_split_70_15_15(y_pool, seed=cfg['training']['seed'])
     apply_btag_feature_mask = False  # b-tag features visible
@@ -148,11 +133,12 @@ def main():
     # normalisation in lib.sample_weights maps it to exactly 1: the recipe
     # reduces to plain class balancing.  It is kept for uniformity with ML1
     # (where the per-process weights DO survive the normalisation).
-    k3_pool  = kp['kappa3_value'][idx]
-    nbt_pool = kp['n_btag_total'][idx]
+    k3_pool = kp['kappa3_value'][idx]
+    _ngens = {int(cfg['inputs'][nm]['n_gen_per_kappa']) for nm in inputs}
+    assert len(_ngens) == 1, f'ml2 sources must share n_gen_per_kappa, got {_ngens}'
     sample_weight_tr, sample_weight_va, cw_ratio = ml2_sample_weights(
-        k3_pool, nbt_pool, sp['idx_train'], sp['idx_val'], ytr, yva,
-        k_low, k_high, apply_btag_cut=False)
+        k3_pool, sp['idx_train'], sp['idx_val'], ytr, yva,
+        k_low, k_high, cfg['physics'], _ngens.pop())
     log(f'  sample_weight: per-class mean-normalised κ-weights × class_weight (ratio={cw_ratio:.2f})')
     log(f'    tr Σw(κ={k_high})={sample_weight_tr[ytr>0.5].sum():.2f}  '
         f'Σw(κ={k_low})={sample_weight_tr[ytr<0.5].sum():.2f}')
@@ -182,12 +168,12 @@ def main():
     np.savez(out_scores,
              d_test=pte, y_test=yte, idx_test=idx[sp['idx_test']],
              d_val=pva,  y_val=yva,  idx_val=idx[sp['idx_val']],
-             kappa_low=k_low, kappa_high=k_high, btag_cut=btag_cut, drop=np.array(drop))
+             kappa_low=k_low, kappa_high=k_high, drop=np.array(drop))
     with open(out_meta, 'w') as f:
         json.dump(dict(hp=hp, drop=drop, kept_globals=kept, epochs=epochs,
                        seed=seed, n_params=n_pars, test_auc=auc_te, val_auc=auc_va,
                        events_per_param=len(ytr) / max(n_pars, 1),
-                       kappa_low=k_low, kappa_high=k_high, btag_cut=btag_cut,
+                       kappa_low=k_low, kappa_high=k_high,
                        stage=cfg['stage']), f, indent=2)
     log(f'saved → {out_keras}, {out_hist}, {out_scores}, {out_meta}')
 

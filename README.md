@@ -99,17 +99,31 @@ bash run_all.sh 3tev --no-retune-spanet
 #   --retune-ml           (default OFF) run 04a/05a Optuna before 04/05 train
 ```
 
-`run_all.sh` exports `PIPELINE_STAGE` for the stage-dependent physics constants
-(luminosity, cross sections); if you run a step script by hand, export it
-yourself (`export PIPELINE_STAGE=10tev`) — see the note at the top of
-`run_all.sh`.
+All stage-dependent physics inputs (luminosity, cross sections, background
+process list) live in the `physics:` block of `config/<stage>.yaml` — edit
+them there for your own MC set; nothing is hard-coded.
 
-One optional mode switch: `SPANET_SHARED_SPLIT=1` makes SPANet train on the
-same 70/15/15 partition as the downstream classifiers (instead of its own
-85/15 split), so the classifier test fold is blind to both networks. Set it
-consistently for the WHOLE chain (02 through 07); the fold cross-checks in
-step 07 fail loudly on a mixed-mode run. The default (unset) reproduces the
-paper training.
+## Model architecture
+
+![Multi-stream classifier architecture](docs/architecture.png)
+
+Both classifiers (`D_HH`, `D_κ3`) share this multi-stream architecture:
+jet-token self-attention, Higgs-candidate tokens built from the SPANet
+pairing, global high-level + topological features, and a low-level
+particle-cloud stream, merged into a single sigmoid output.
+
+## Figures
+
+After a full run, the paper-style figures can be reproduced with the
+plotting steps (all config-driven — a different `fit_kappa_grid`, κ3
+endpoints or background list propagates automatically):
+
+| script | figure | output |
+|---|---|---|
+| `08_dll_plots.py` | −ΔlnL(κ₃) scan + poly4 fit + 68/95% CL bands; log₁₀(S/B) template map | `dll/<stage>/fig_dll_curve.png`, `fig_logSB.png` |
+| `09_plot_kinematics.py` | kinematic distributions, κ₃ slices vs weighted background | `analysis/<stage>/fig_kinematics.png` |
+| `10_plot_scores.py` | D_HH / D_κ3 score distributions | `analysis/<stage>/fig_scores.png` |
+| `11_plot_shap.py` | SHAP beeswarm for both classifiers (needs `pip install shap`) | `analysis/<stage>/fig_shap.png` |
 
 ## Key design choices
 
@@ -133,8 +147,9 @@ paper training.
   value (a display convention; the constant shift does not change the
   intervals) and fitted with a fourth-order polynomial; the 68 % (95 %) CL
   interval is the connected region below 0.5 (1.92) **referenced to the
-  fitted minimum** → `src/lib/dll.py:poly4_w68`.  At 10 TeV the fit is
-  restricted to the refined grid κ₃ ∈ [0.8, 1.2] (`dll.fit_window`).
+  fitted minimum** → `src/lib/dll.py:poly4_w68`.  The fit spans the full
+  `dll.fit_kappa_grid` by default; an optional `dll.fit_window` restricts
+  it to a κ₃ sub-range (points outside are still scanned and plotted).
 
 * **Optuna with an anti-overparameterisation cap**: trials whose trainable
   parameter count violates `n_train_signal ≥ safety_factor × n_params` are
@@ -170,8 +185,7 @@ git-ignored.
    `dll/<stage>/dll_per_kappa.md`
 
 A note on reproducibility: given fixed trained networks, the likelihood scan
-and CL extraction (steps 07 and 08) are deterministic and reproduce the
-paper's intervals exactly. The network trainings themselves (steps 02, 04,
+and CL extraction (steps 07 and 08) are deterministic. The network trainings themselves (steps 02, 04,
 05) run on GPU and are not bit-reproducible, so a retrained pipeline lands on
 statistically equivalent but not identical networks. The extracted intervals
 then reproduce the paper within the training spread; repeating the full

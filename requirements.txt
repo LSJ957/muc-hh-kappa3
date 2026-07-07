@@ -10,3 +10,4 @@ tensorflow>=2.13
 torch>=2.0
 optuna>=3.3
 ripser>=0.6
+shap>=0.44        # optional — only for 11_plot_shap.py

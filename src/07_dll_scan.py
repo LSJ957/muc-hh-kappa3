@@ -45,10 +45,10 @@ from lib import physics_constants as pc
 def log(m=''): print(f'[{time.strftime("%H:%M:%S")}] {m}', flush=True)
 
 
-def _kappa_w_evt(xsec_pb, ngen, resc=1.0):
+def _kappa_w_evt(xsec_pb, ngen, lumi, resc=1.0):
     """Per-event weight for a κ-scan signal template at analysis luminosity:
-    w = σ(κ)[pb] · BR(H→bb)² · 1000 [fb/pb] · LUMI[fb⁻¹] / N_gen · resc."""
-    return xsec_pb * pc.BR_HBB_SQ * 1e3 * pc.LUMI_FB_INV / ngen * resc
+    w = σ(κ)[pb] · BR(H→bb)² · 1000 [fb/pb] · L[fb⁻¹] / N_gen · resc."""
+    return xsec_pb * pc.BR_HBB_SQ * 1e3 * lumi / ngen * resc
 
 
 def predict_scores(model, hl, jets, assign, met_phi, ll_cloud, drop):
@@ -112,38 +112,25 @@ def main():
     # NOTE: assumes a single ml_usage.ml1.sigbg input (as shipped); 04 uses
     # load_concat over the list, so a multi-input setup needs the same here.
     sb, _ = load_and_repair(cfg, cfg['ml_usage']['ml1']['sigbg'][0])
-    tgt = sb['target_sigbg']; nbt = sb['n_btag_total']
+    tgt = sb['target_sigbg']
     pid = sb['target_everytype']
-    # Reconstruct the ML1 split with the SAME recipe as 04: stratified on the
-    # target by default, or on the canonical strata when SPANET_SHARED_SPLIT=1
-    # (the optional aligned-split training mode).
-    if os.environ.get('SPANET_SHARED_SPLIT', '0') == '1':
-        from lib.splits import canonical_sigbg_strata
-        _sbt = load_input(cfg, cfg['ml_usage']['ml1']['sigbg'][0],
-                          load_jets=False, load_truth=True, load_ll_cloud=False)
-        sp = make_split_70_15_15(canonical_sigbg_strata(tgt, _sbt['truth_valid']),
-                                 seed=cfg['training']['seed'])
-        del _sbt
-    else:
-        sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
+    # Reconstruct the ML1 split with the SAME recipe as 04
+    sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
     # Cross-check the re-derived ML1 test fold against the indices 04 actually
-    # used (saved in ml1_scores.npz).  If the split recipe in 04 ever drifts
-    # (e.g. the SPANET_SHARED_SPLIT strata), B would silently include ML1
-    # training events — fail loud instead.
+    # used (saved in ml1_scores.npz).  If the split recipe in 04 ever drifts,
+    # B would silently include ML1 training events — fail loud instead.
     _ml1_scores_p = os.path.join(cfg['models_dir'], 'ml1_scores.npz')
     if os.path.exists(_ml1_scores_p):
         _saved = np.load(_ml1_scores_p)['idx_test']
         if not np.array_equal(np.sort(_saved), np.sort(sp['idx_test'])):
-            sys.exit('ML1 test-fold reconstruction disagrees with ml1_scores.npz idx_test.\n'
-                     'Most likely SPANET_SHARED_SPLIT here differs from the setting used when\n'
-                     'training 04 (set it consistently for the whole chain); otherwise the\n'
-                     '04/07 split recipes have drifted. Fix before trusting B.')
+            sys.exit('ML1 test-fold reconstruction disagrees with ml1_scores.npz idx_test — '
+                     'the 04/07 split recipes have drifted; fix before trusting B')
         log('  ML1 test-fold cross-check vs ml1_scores.npz: OK')
     test_mask = np.zeros(sb['N'], dtype=bool); test_mask[sp['idx_test']] = True
     resc = sb['N'] / max(int(test_mask.sum()), 1)            # test-fold rescale (~6.67)
     _sigbg_in = cfg['ml_usage']['ml1']['sigbg'][0]
-    _ngen     = cfg['inputs'][_sigbg_in].get('n_gen_per_process')
-    w_sb = sigbg_weights(tgt, pid, nbt, False, n_gen_per_process=_ngen) * test_mask * resc
+    _ngen     = int(cfg['inputs'][_sigbg_in]['n_gen_per_process'])
+    w_sb = sigbg_weights(tgt, pid, cfg['physics'], _ngen) * test_mask * resc
     bkg  = test_mask & (tgt == 0)
     log(f'  sigbg N={sb["N"]:,}  test={int(test_mask.sum()):,}  bkg-test={int(bkg.sum()):,}  resc×{resc:.2f}')
 
@@ -158,9 +145,8 @@ def main():
     sm_mask = np.abs(anc['kappa3_value'] - k_anchor) < KAPPA_MATCH_TOL
     if not sm_mask.any():
         sys.exit(f'reference "{anchor_name}" has no κ={k_anchor} events')
-    anchor_ngen = int(cfg['inputs'][anchor_name].get('n_gen_per_kappa', pc.N_GEN_KAPPA_PER_SLICE))
-    w_anc = kappa_weights(anc['kappa3_value'], anc['n_btag_total'], False,
-                          n_gen_per_kappa=anchor_ngen)
+    anchor_ngen = int(cfg['inputs'][anchor_name]['n_gen_per_kappa'])
+    w_anc = kappa_weights(anc['kappa3_value'], cfg['physics'], anchor_ngen)
     d1_anc = predict_scores(ml1, anc['hl'], anc['jets'], anc['spanet_assignment'],
                             anc['met_phi'], anc['ll_cloud'], drop_ml1)
     d2_anc = predict_scores(ml2, anc['hl'], anc['jets'], anc['spanet_assignment'],
@@ -175,8 +161,9 @@ def main():
     # ── 3) Score the template sources (PRIORITY order: the first listed
     #       source wins when several sources cover the same κ value). ──
     chosen_src = {}     # canonical κ → src_name (priority pick)
-    src_cache = {}      # src_name → dict(d1, d2, k3, nbt)
-    src_ngen  = {nm: int(cfg['inputs'][nm].get('n_gen_per_kappa', pc.N_GEN_KAPPA_PER_SLICE))
+    src_cache = {}      # src_name → dict(d1, d2, k3)
+    KXS = {float(k): float(v) for k, v in cfg['physics']['kappa3_xsec_pb'].items()}
+    src_ngen  = {nm: int(cfg['inputs'][nm]['n_gen_per_kappa'])
                  for nm in cfg['dll']['template_sources']}
     for src_name in cfg['dll']['template_sources']:
         d, _ = load_and_repair(cfg, src_name)
@@ -184,9 +171,8 @@ def main():
                             d['met_phi'], d['ll_cloud'], drop_ml1)
         d2 = predict_scores(ml2, d['hl'], d['jets'], d['spanet_assignment'],
                             d['met_phi'], d['ll_cloud'], drop_ml2)
-        src_cache[src_name] = dict(d1=d1, d2=d2, k3=d['kappa3_value'],
-                                   nbt=d['n_btag_total'])
-        for kf in pc.KAPPA3_XSEC_PB:
+        src_cache[src_name] = dict(d1=d1, d2=d2, k3=d['kappa3_value'])
+        for kf in KXS:
             # Keep the κ=1 reference independent: skip the reference source at
             # its own κ (otherwise template = reference events → DLL=0 by
             # self-comparison).
@@ -203,33 +189,27 @@ def main():
     # ml_usage.ml2.source, so a template at those κ values would be evaluated
     # partly on ML2's own training events (artificially sharp scores).
     # Recover the exact ML2 test fold (same seed, same concat order, same κ
-    # filter, same b-tag knob) and restrict ONLY those (src, κ) templates.
+    # filter) and restrict ONLY those (src, κ) templates.
     ml2_sources = list(cfg['ml_usage']['ml2']['source'])
     ml2_klow = float(cfg['ml_usage']['ml2']['kappa_low'])
     ml2_khi  = float(cfg['ml_usage']['ml2']['kappa_high'])
     ml2_train_kappas = (ml2_klow, ml2_khi)
-    ml2_btag_cut = int(cfg['training'].get('ml2_btag_cut', -1))
     per_src_test_mask = {nm: None for nm in ml2_sources}
     _offsets = [0]
-    _concat_k3, _concat_nbt = [], []
+    _concat_k3 = []
     for nm in ml2_sources:
         if nm in src_cache:
-            k3_arr  = src_cache[nm]['k3']
-            nbt_arr = src_cache[nm]['nbt']
+            k3_arr = src_cache[nm]['k3']
         else:
             d, _ = load_and_repair(cfg, nm)
-            k3_arr  = d['kappa3_value']
-            nbt_arr = d['n_btag_total']
-        _concat_k3.append(k3_arr); _concat_nbt.append(nbt_arr)
+            k3_arr = d['kappa3_value']
+        _concat_k3.append(k3_arr)
         _offsets.append(_offsets[-1] + len(k3_arr))
         per_src_test_mask[nm] = np.zeros(len(k3_arr), dtype=bool)
-    concat_k3  = np.concatenate(_concat_k3)
-    concat_nbt = np.concatenate(_concat_nbt)
+    concat_k3 = np.concatenate(_concat_k3)
     m_lo_concat = pc.kappa_match(concat_k3, ml2_klow)
     m_hi_concat = pc.kappa_match(concat_k3, ml2_khi)
     sel_concat = (m_lo_concat | m_hi_concat)
-    if ml2_btag_cut >= 0:
-        sel_concat = sel_concat & (concat_nbt >= ml2_btag_cut)
     idx_pool = np.where(sel_concat)[0]
     y_pool = np.where(m_hi_concat[sel_concat], 1.0, 0.0).astype(np.float32)
     sp_ml2 = make_split_70_15_15(y_pool, seed=cfg['training']['seed'])
@@ -254,7 +234,7 @@ def main():
     # ── 5) Raw per-κ DLL scan on fit_kappa_grid ──
     def _canon(k):
         """Map a near-κ to its canonical KAPPA3_XSEC_PB key (within tol)."""
-        for ck in pc.KAPPA3_XSEC_PB:
+        for ck in KXS:
             if abs(float(k) - ck) < KAPPA_MATCH_TOL:
                 return ck
         return None
@@ -277,15 +257,14 @@ def main():
                 log(f'    ⚠️  κ={kf:.3f} src={src}: only {n_test} ML2 test events; '
                     f'falling back to the full pool (template retains a small leak)')
             else:
-                # Exact for ml2_btag_cut = -1 (uniform random test fold, as
-                # shipped).  With a btag cut ≥ 0 the fold covers only
-                # btag-passing events while n_full counts the whole slice,
-                # so this rescale would bias the template shape.
+                # test fold is a uniform random subsample of the κ slice →
+                # scaling it to the full-slice yield is unbiased
                 leak_resc = n_full / n_test    # ≈ 6.7 (test fold ≈ 15%)
                 m = m_test
         if int(m.sum()) < 100:
             return None
-        w_evt = _kappa_w_evt(pc.KAPPA3_XSEC_PB[kf], src_ngen[src], resc=leak_resc)
+        w_evt = _kappa_w_evt(KXS[kf], src_ngen[src],
+                             float(cfg['physics']['lumi_fb_inv']), resc=leak_resc)
         wt = np.full(int(m.sum()), w_evt, dtype=np.float64)
         # The d2 quantile edges were calibrated on bkg-test + reference only;
         # extreme-κ template scores can fall outside and hist2d drops them

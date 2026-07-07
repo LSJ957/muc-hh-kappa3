@@ -78,31 +78,7 @@ def main():
 
     # ── data ──
     inputs = cfg['ml_usage']['ml1']['sigbg']
-    # SPANET_SHARED_SPLIT needs truth_valid for canonical stratification; cost of loading
-    # the bool/int8 truth arrays is tiny so we just always load them.
-    sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
-    # apply SPANet-A pairing from 03_precompute_pairing
-    assign_paths = [os.path.join(cfg['models_dir'], f'assign_{nm}.npy') for nm in inputs]
-    assign = np.concatenate([np.load(p).astype(np.int8) for p in assign_paths])
-    assert len(assign) == sb['N'], f'assign len {len(assign)} != N {sb["N"]}'
-    rec = recompute_hl_from_assignment(sb['jets'], assign, sb['hl']['met'], sb['met_phi'])
-    for k, v in rec.items():
-        sb['hl'][k] = v
-    sb['spanet_assignment'] = assign
-
-    tgt = sb['target_sigbg']; nbt = sb['n_btag_total']
-    # NOCUT: no pool filter
-    apply_btag_feature_mask = False
-    # SPANET_SHARED_SPLIT=1 → stratify on (sig_lab*2 + truth_valid) so 02_train_spanet
-    # (with same env var set) produces an IDENTICAL 70/15/15 partition, making
-    # idx_test truly blind to both SPANet and ML1.
-    if os.environ.get('SPANET_SHARED_SPLIT', '0') == '1':
-        from lib.splits import canonical_sigbg_strata
-        _strata = canonical_sigbg_strata(tgt, sb['truth_valid'])
-        sp = make_split_70_15_15(_strata, seed=cfg['training']['seed'])
-        log(f'  [shared split] stratify=sig_lab*2+truth_valid (3 strata)')
-    else:
-        sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
+    sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
     log(f'  pool N={sb["N"]:,}  pos_frac={float(tgt.mean()):.4f}  '
         f'train/val/test = {len(sp["idx_train"]):,}/{len(sp["idx_val"]):,}/{len(sp["idx_test"]):,}')
 
@@ -146,12 +122,11 @@ def main():
     # `n_gen_per_process` comes from the config so a 3rd-party MC set with a
     # different generation budget is weighted correctly.
     sigbg_input = cfg['ml_usage']['ml1']['sigbg'][0]
-    n_gen_proc  = cfg['inputs'][sigbg_input].get('n_gen_per_process')
+    n_gen_proc  = int(cfg['inputs'][sigbg_input]['n_gen_per_process'])
     sample_weight_tr, sample_weight_va, cw_ratio = ml1_sample_weights(
-        tgt, sb['target_everytype'], nbt,
+        tgt, sb['target_everytype'],
         sp['idx_train'], sp['idx_val'], ytr, yva,
-        apply_btag_cut=False,
-        n_gen_per_process=n_gen_proc)
+        cfg['physics'], n_gen_proc)
     log(f'  sample_weight: per-class mean-normalised physics weights × class_weight (ratio={cw_ratio:.2f})')
     log(f'    tr Σw_sig = {sample_weight_tr[ytr>0.5].sum():.2f}  Σw_bg = {sample_weight_tr[ytr<0.5].sum():.2f}')
 

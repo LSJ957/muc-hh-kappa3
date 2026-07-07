@@ -14,9 +14,9 @@ Per-stage paths, sample lists, cross-sections, and BTAG cuts are driven by
 
 HDF5 schema (per file produced by 01_extract_features.py):
   /hl/<col>          — 45 HL features + Event_ID, target_sigbg, target_everytype,
-                        kappa3_value, diagram_label, met_phi (gzip compressed)
+                        kappa3_value, met_phi (gzip compressed)
   /ll_cloud          — (N, 40, 4) particle cloud [pT_frac, Δη, Δφ, type]
-                       (mask channel dropped 2026-06-02 to align with the
+                       (no mask channel — padded slots are all-zero;
                        boosted analysis's no-mask convention; padded slots
                        are zero-vectors (0,0,0,0) and handled by the
                        network as such)
@@ -40,7 +40,7 @@ from . import physics_constants as _pc
 # 0.  CONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════
 # Path/sample-list constants from the legacy stand-alone runner were removed
-# 2026-05-28 — they referenced machine-specific paths and a 3 TeV-only sample
+# they referenced machine-specific paths and are not part of this release.
 # table.  This module is now only imported as a library (process_one_root /
 # save_h5); all paths/x-sections live in `config/<stage>.yaml` and
 # `physics_constants.py`.
@@ -50,7 +50,7 @@ N_JETS      = 4
 MAX_CONST   = 10          # max constituents per jet for LL cloud
 N_PARTICLES = N_JETS * MAX_CONST   # 40
 BTAG_BIT    = 1           # WP70 (BitNumber=1 in Delphes card)
-# (M_HIGGS removed 2026-06-02: no longer used in this module after the XHH
+# (M_HIGGS is not needed in this module after the XHH
 # formula switched to the ATLAS resolved asymmetric form (centres 120, 110);
 # downstream files that need m_H still import it directly from physics_constants.)
 TRUTH_DR_MAX = 0.5        # ΔR threshold for gen b-quark ↔ reco jet matching
@@ -58,7 +58,7 @@ TRUTH_DR_MAX = 0.5        # ΔR threshold for gen b-quark ↔ reco jet matching
 NUM_CORES = min(os.cpu_count(), 16)
 
 # (Legacy 3T-only sample tables SIGBG_SAMPLES / KAPPA3_XSEC_PB / DIAGRAM_SAMPLES
-# were removed 2026-05-28.  All cross-sections and per-stage paths now live in
+# are not part of this release.  All cross-sections and per-stage paths now live in
 # `physics_constants.py` and the per-stage YAMLs under `config/`.)
 
 # ─── Branches to read from ROOT ───
@@ -71,7 +71,6 @@ BRANCHES_TO_READ = [
     f"{JET_BRANCH}.NCharged", f"{JET_BRANCH}.NNeutrals",
     f"{JET_BRANCH}.ChargedEnergyFraction",
     f"{JET_BRANCH}.PTD", f"{JET_BRANCH}.MeanSqDeltaR",
-    f"{JET_BRANCH}.Flavor",
     # MET
     "MissingET.MET", "MissingET.Phi",
     # Leptons (for veto)
@@ -90,9 +89,8 @@ BRANCHES_TO_READ = [
 
 # GenParticle branches (read separately for truth matching)
 GEN_BRANCHES = [
-    "Particle.PID", "Particle.Status",
-    "Particle.D1", "Particle.D2",
-    "Particle.PT", "Particle.Eta", "Particle.Phi", "Particle.Mass",
+    "Particle.PID", "Particle.D1", "Particle.D2",
+    "Particle.Eta", "Particle.Phi",
 ]
 
 # Pruned 45 HL feature list — single source of truth in physics_constants.
@@ -189,8 +187,8 @@ def compute_tda_single(event_data):
 # ═════════════════════════════════════════════════════════════════════════
 # 3.  TRUTH MATCHING: GenParticle H→bb ↔ Reco Jets
 # ═════════════════════════════════════════════════════════════════════════
-def truth_match_event(gen_pid, gen_status, gen_d1, gen_d2,
-                      gen_pt, gen_eta, gen_phi,
+def truth_match_event(gen_pid, gen_d1, gen_d2,
+                      gen_eta, gen_phi,
                       reco_jet_eta, reco_jet_phi):
     """
     For a single event, find the truth jet pairing from GenParticle H→bb.
@@ -294,10 +292,8 @@ def truth_match_batch(gen_arrays, reco_jet_eta, reco_jet_phi, n_events):
     truth_match_dr = np.zeros((n_events, 4), dtype=np.float32)
 
     pid_list = gen_arrays['pid']
-    status_list = gen_arrays['status']
     d1_list = gen_arrays['d1']
     d2_list = gen_arrays['d2']
-    pt_list = gen_arrays['pt']
     eta_list = gen_arrays['eta']
     phi_list = gen_arrays['phi']
 
@@ -305,10 +301,8 @@ def truth_match_batch(gen_arrays, reco_jet_eta, reco_jet_phi, n_events):
     for ev in range(n_events):
         pi, valid, drs = truth_match_event(
             ak.to_list(pid_list[ev]),
-            ak.to_list(status_list[ev]),
             ak.to_list(d1_list[ev]),
             ak.to_list(d2_list[ev]),
-            ak.to_list(pt_list[ev]),
             ak.to_list(eta_list[ev]),
             ak.to_list(phi_list[ev]),
             reco_jet_eta[ev],
@@ -334,7 +328,7 @@ def truth_match_batch(gen_arrays, reco_jet_eta, reco_jet_phi, n_events):
 # 4.  CORE: PROCESS ONE ROOT FILE
 # ═════════════════════════════════════════════════════════════════════════
 def process_one_root(root_path, label_sigbg, label_everytype,
-                     kappa3_value=np.nan, diagram_label=-1,
+                     kappa3_value=np.nan,
                      is_hh_signal=False):
     """
     Read a single ROOT file and extract all features after selection cuts.
@@ -538,7 +532,6 @@ def process_one_root(root_path, label_sigbg, label_everytype,
         'target_sigbg':     np.full(n_final, label_sigbg, dtype=np.int8),
         'target_everytype': np.full(n_final, label_everytype, dtype=np.int8),
         'kappa3_value':     np.full(n_final, kappa3_value, dtype=np.float32),
-        'diagram_label':    np.full(n_final, diagram_label, dtype=np.int8),
     }
 
     for j in range(N_JETS):
@@ -686,13 +679,11 @@ def process_one_root(root_path, label_sigbg, label_everytype,
         # Apply same event selection
         gen_selected = gen_arrays_all[basic_mask][ptH_mask]
         gen_dict = {
-            'pid':    gen_selected["Particle.PID"],
-            'status': gen_selected["Particle.Status"],
-            'd1':     gen_selected["Particle.D1"],
-            'd2':     gen_selected["Particle.D2"],
-            'pt':     gen_selected["Particle.PT"],
-            'eta':    gen_selected["Particle.Eta"],
-            'phi':    gen_selected["Particle.Phi"],
+            'pid': gen_selected["Particle.PID"],
+            'd1':  gen_selected["Particle.D1"],
+            'd2':  gen_selected["Particle.D2"],
+            'eta': gen_selected["Particle.Eta"],
+            'phi': gen_selected["Particle.Phi"],
         }
         truth_pairing, truth_valid, truth_match_dr = truth_match_batch(
             gen_dict, j_eta, j_phi, n_final
@@ -769,5 +760,5 @@ def save_h5(output_path, hl_df, ll_cloud, jets_array,
 
 
 # (Legacy stand-alone runners — run_sigbg, run_kappa_scan, run_diagram, main —
-# were removed 2026-05-28.  Pipeline entry-point is 01_extract_features.py, which
+# are not part of this release.  Pipeline entry-point is 01_extract_features.py, which
 # imports the helpers above; this module is library-only.)

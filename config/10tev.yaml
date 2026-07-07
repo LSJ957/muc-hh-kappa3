@@ -8,6 +8,43 @@ models_dir:    models/10tev
 analysis_dir:  analysis/10tev
 dll_dir:       dll/10tev
 
+# ── Analysis physics inputs (EDIT for your own MC set) ──────────────────────
+# Luminosity, per-process background cross sections and the κ3 signal
+# cross-section table are inputs, not code constants: replace them with the
+# values of your own generation (MG banner "Integrated weight").
+physics:
+  lumi_fb_inv: 10000.0                      # 10 ab⁻¹
+  # signal σ(μ+μ- → HHνν̄) [pb] per κ3 point (BR(H→bb)² applied in code).
+  # Add/remove κ3 points freely — dll.fit_kappa_grid selects the scan.
+  kappa3_xsec_pb:
+    0.2:  5.607739e-03
+    0.4:  5.021998e-03
+    0.6:  4.538471e-03
+    0.8:  4.111436e-03
+    0.84: 4.038709e-03
+    0.88: 3.974985e-03
+    0.92: 3.907216e-03
+    0.96: 3.840072e-03
+    1.0:  3.784274e-03
+    1.04: 3.721660e-03
+    1.08: 3.668753e-03
+    1.12: 3.618311e-03
+    1.16: 3.571793e-03
+    1.2:  3.520894e-03
+    1.4:  3.349818e-03
+    1.6:  3.246342e-03
+    1.8:  3.226440e-03
+  # background processes: target_everytype id → name, σ [pb], and whether one
+  # factor BR(H→bb) applies (single-Higgs backgrounds decayed to bb)
+  backgrounds:
+    1: {name: hqqvv, xsec_pb: 1.468999e-02, apply_br_hbb: true}
+    2: {name: wwvv,  xsec_pb: 3.396777e-02}
+    3: {name: zzvv,  xsec_pb: 2.393354e-02}
+    4: {name: ttvv,  xsec_pb: 6.982144e-03}
+    5: {name: ww,    xsec_pb: 2.607950e-06}
+    6: {name: zz,    xsec_pb: 3.858410e-07}
+    7: {name: tt,    xsec_pb: 7.035200e-04}
+
 # Root directory holding the raw Delphes .root files.  Resolved by
 # `config_loader.resolve_paths`: env var `HHML_DATA_ROOT` takes precedence
 # over this yaml value.  Replace this placeholder with your own path or
@@ -74,10 +111,11 @@ inputs:
     target_everytype: 0
     is_signal:        true
 
-  # High-statistics 500k samples in [0.80, 1.20] at 0.04 spacing (≈5× existing).
+  # Higher-statistics samples (500k per κ3 point) on the refined 0.04-spaced
+  # grid around κ3 = 1.
   # Used in addition to kappa_scan_main for the DLL templates (07).
-  kappa_scan_500k:
-    h5: data/10tev/kappa_scan_500k.h5
+  kappa_scan_refined:
+    h5: data/10tev/kappa_scan_refined.h5
     n_gen_per_kappa: 500000
     roots:
       - ${data_root}/mm_hhx_kappa_k3_0.80_k2v_1_10tev_500k.root
@@ -110,13 +148,13 @@ dll:
   fit_kappa_grid: [0.2, 0.4, 0.6, 0.8, 0.84, 0.88, 0.92, 0.96, 1.0, 1.04, 1.08, 1.12, 1.16, 1.2, 1.4, 1.6, 1.8]
   # PRIORITY ORDER (first listed wins when multiple sources share a κ value):
   # kappa_indep first → independent-sample templates at κ∈{0.4,1.0,1.6} and the κ=1 reference
-  # 500k second → high-stat templates at κ∈[0.80,1.20]∩0.04-grid
+  # refined second → high-stat templates on the 0.04-spaced grid near κ=1
   # main last → fallback for κ values not covered by the above
-  template_sources:  [kappa_indep, kappa_scan_500k, kappa_scan_main]
-  # Restrict the fourth-order polynomial fit to the refined grid around the
-  # likelihood well; the coarser points outside are scanned and plotted but
-  # do not enter the fit.
-  fit_window: [0.8, 1.2]
+  template_sources:  [kappa_indep, kappa_scan_refined, kappa_scan_main]
+  # OPTIONAL: restrict the fourth-order polynomial fit to a κ3 sub-range
+  # (points outside are still scanned and plotted).  Default: fit the full
+  # fit_kappa_grid.
+  # fit_window: [0.8, 1.2]
   anchor:
     source: kappa_indep
     kappa:  1.0
@@ -148,4 +186,3 @@ training:
   split: [0.70, 0.15, 0.15]   # 70/15/15 is fixed in lib/splits.py; only
                               # split[1] (SPANet val fraction) is read by 02a
   epochs_final: 70
-  ml2_btag_cut: -1            # 2026-05-27: NO BTAG cut at training (κ-irrelevant)

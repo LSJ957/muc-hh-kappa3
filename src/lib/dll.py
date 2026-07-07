@@ -53,8 +53,6 @@ def poly4_w68(
 
     Returns dict with keys:
       w68_connected : width of the contiguous <0.5 region containing argmin
-      w68_canonical : raw max-min span of the <0.5 mask (diagnostic only;
-                      double-counts disjoint regions — do not quote)
       k3_lo, k3_hi  : connected-region boundaries
       k3_min        : κ at the polyfit minimum
       n_regions     : number of disjoint <0.5 regions (diagnostic; if >1 the
@@ -96,7 +94,6 @@ def poly4_w68(
     if not mask.any():
         return dict(
             w68_connected=float('nan'),
-            w68_canonical=float('nan'),
             k3_lo=float('nan'),
             k3_hi=float('nan'),
             k3_min=k3_min,

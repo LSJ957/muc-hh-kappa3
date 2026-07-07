@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """05a_tune_ml2.py — Optuna search for ML2 (binary κ_low vs κ_high) with
-anti-overparam pruning.  Same recipe as 04a but on the (much smaller) κ-binary
-pool.  BTAG cut at training is governed by `training.ml2_btag_cut` in the
-stage YAML: default -1 (no cut, current policy 2026-05-27); set ≥0 to enable."""
+anti-overparam pruning.  Same recipe as 04a but on the (much smaller)
+κ-binary pool."""
 import os, sys, argparse, json, time
 _LIB = os.environ.get('HHML_CONDA_LIB')
 if _LIB is None:
@@ -68,15 +67,11 @@ def build_inputs_ml2(cfg):
     k3 = kp['kappa3_value'].astype(np.float64); nbt = kp['n_btag_total']
     k_lo = float(cfg['ml_usage']['ml2']['kappa_low'])
     k_hi = float(cfg['ml_usage']['ml2']['kappa_high'])
-    # default -1 = no BTAG cut at training (κ-irrelevant feature; gives ×1.56
-    # more data with no loss on BTAG≥3 inference subset). Match 05_train_ml2's default.
-    btag_cut = int(cfg['training'].get('ml2_btag_cut', -1))
     m_lo = np.abs(k3 - k_lo) < KAPPA_MATCH_TOL
     m_hi = np.abs(k3 - k_hi) < KAPPA_MATCH_TOL
-    sel  = (m_lo | m_hi) if btag_cut < 0 else (m_lo | m_hi) & (nbt >= btag_cut)
+    sel  = (m_lo | m_hi)
     if not sel.any():
-        cut_str = '(no BTAG cut)' if btag_cut < 0 else f'BTAG≥{btag_cut}'
-        raise RuntimeError(f'ML2 pool empty for κ_low={k_lo}, κ_high={k_hi}, {cut_str}')
+        raise RuntimeError(f'ML2 pool empty for κ_low={k_lo}, κ_high={k_hi}')
     idx = np.where(sel)[0]
     y = np.where(m_hi[sel], 1.0, 0.0).astype(np.float32)
     jc, jb = MA.build_jet_tokens(kp['jets'], kp['met_phi'], False)
@@ -90,14 +85,15 @@ def build_inputs_ml2(cfg):
     Xtr = {k: v[sp['idx_train']] for k, v in X.items()}
     Xva = {k: v[sp['idx_val']]   for k, v in X.items()}
     ytr = y[sp['idx_train']]; yva = y[sp['idx_val']]
-    # tune/train loss-function parity (N-7): same per-event physics × class
-    # weight recipe as 05_train_ml2.py.
-    k3_pool  = k3[idx]
-    nbt_pool = nbt[idx]
+    # tune/train loss-function parity: same per-event physics × class weight
+    # recipe as 05_train_ml2.py.
+    k3_pool = k3[idx]
+    _ngens = {int(cfg['inputs'][nm]['n_gen_per_kappa']) for nm in inputs}
+    assert len(_ngens) == 1, f'ml2 sources must share n_gen_per_kappa, got {_ngens}'
     sw_tr, sw_va, cw_ratio = ml2_sample_weights(
-        k3_pool, nbt_pool, sp['idx_train'], sp['idx_val'], ytr, yva,
-        k_lo, k_hi, apply_btag_cut=False)
-    return Xtr, ytr, Xva, yva, sw_tr, sw_va, cw_ratio, n_globals, drop, k_lo, k_hi, btag_cut
+        k3_pool, sp['idx_train'], sp['idx_val'], ytr, yva,
+        k_lo, k_hi, cfg['physics'], _ngens.pop())
+    return Xtr, ytr, Xva, yva, sw_tr, sw_va, cw_ratio, n_globals, drop, k_lo, k_hi
 
 
 def main():
@@ -111,9 +107,9 @@ def main():
     safety_fac = float(o.get('safety_factor', 2.0))
 
     log(f'=== ML2 OPTUNA  stage={cfg["stage"]}  n_trials={n_trials}  epochs/trial={epochs_t} ===')
-    Xtr, ytr, Xva, yva, sw_tr, sw_va, cw_ratio, n_globals, drop, klo, khi, btagc = build_inputs_ml2(cfg)
+    Xtr, ytr, Xva, yva, sw_tr, sw_va, cw_ratio, n_globals, drop, klo, khi = build_inputs_ml2(cfg)
     N_train = len(ytr)
-    log(f'  ML2 train pool {N_train:,}  (κ={klo}/{khi}, BTAG≥{btagc})  '
+    log(f'  ML2 train pool {N_train:,}  (κ={klo}/{khi})  '
         f'safety_factor={safety_fac} → max_params ≈ {int(N_train / safety_fac):,}')
     log(f'  sample_weight: per-class mean-normalised κ-weights × class_weight (ratio={cw_ratio:.2f})')
 
@@ -168,7 +164,7 @@ def main():
                        n_params=int(study.best_trial.user_attrs.get('n_params', -1)),
                        safety_factor=safety_fac, n_train=N_train,
                        drop=drop, kept_globals=MA.kept_globals(drop),
-                       kappa_low=klo, kappa_high=khi, btag_cut=btagc,
+                       kappa_low=klo, kappa_high=khi,
                        n_trials_completed=len(completed), stage=cfg['stage']), f, indent=2)
     log(f'wrote {out}')
 

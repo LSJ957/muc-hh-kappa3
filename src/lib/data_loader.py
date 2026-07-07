@@ -21,25 +21,6 @@ from . import physics_constants as _pc
 HL_FEATURES_45 = list(_pc.HL_FEATURES_45)
 
 
-def _global_event_id(target_everytype: np.ndarray, kappa3: np.ndarray | None = None) -> np.ndarray:
-    target_everytype = np.asarray(target_everytype, dtype=np.int64)
-    N = len(target_everytype)
-    if kappa3 is None:
-        ids = np.empty(N, dtype=np.int64)
-        for pid in np.unique(target_everytype):
-            m = (target_everytype == pid)
-            ids[m] = int(pid) * 10**7 + np.arange(m.sum(), dtype=np.int64)
-    else:
-        kappa3 = np.asarray(kappa3, dtype=np.float64)
-        uk = np.array(sorted(np.unique(kappa3)))
-        sidx = np.searchsorted(uk, kappa3)
-        ids = np.empty(N, dtype=np.int64)
-        for ki in range(len(uk)):
-            m = (sidx == ki)
-            ids[m] = int(ki) * 10**7 + np.arange(m.sum(), dtype=np.int64)
-    assert len(np.unique(ids)) == N, 'global_event_id uniqueness failed'
-    return ids
-
 
 def load_h5(h5_path: str, *, cols_hl=None, load_jets=True, load_truth=True, load_ll_cloud=True) -> dict:
     """Load one h5 produced by 01_extract_features.py."""
@@ -56,14 +37,6 @@ def load_h5(h5_path: str, *, cols_hl=None, load_jets=True, load_truth=True, load
                                   if 'target_sigbg' in f['hl'] \
                                   else (out['target_everytype'] == 0).astype(np.int8)
         N = len(out['target_everytype'])
-        # PLACEHOLDER ONLY: the h5s produced by this release never contain
-        # hl/spanet_assignment, so this defaults to all-zeros (= pairing
-        # (01|23) for every event).  Every shipped consumer overwrites it
-        # from models/<stage>/assign_<input>.npy (see 07's load_and_repair);
-        # do NOT use this key without doing the same.
-        out['spanet_assignment'] = (f['hl/spanet_assignment'][:].astype(np.int8)
-                                    if 'spanet_assignment' in f['hl']
-                                    else np.zeros(N, dtype=np.int8))
         if load_jets:
             out['jets'] = f['jets'][:].astype(np.float32)
         if load_truth:
@@ -72,13 +45,6 @@ def load_h5(h5_path: str, *, cols_hl=None, load_jets=True, load_truth=True, load
         if load_ll_cloud and 'll_cloud' in f:
             out['ll_cloud'] = f['ll_cloud'][:].astype(np.float32)
     out['N'] = N
-    # per-event id, distinct per κ slice — convenience field for event
-    # tracing by re-users (not consumed by the shipped scripts)
-    if np.unique(out['kappa3_value']).size > 1:
-        out['global_event_id'] = _global_event_id(out['target_everytype'],
-                                                  out['kappa3_value'].astype(np.float64))
-    else:
-        out['global_event_id'] = _global_event_id(out['target_everytype'])
     print(f'[load_h5] {h5_path.split("/")[-1]}: N={N:,} in {time.time()-t0:.2f}s')
     return out
 
@@ -98,7 +64,7 @@ def load_concat(cfg: dict, input_names: list[str], **kwargs) -> dict:
     if len(parts) == 1:
         return parts[0]
     out = {}; keys_arr = ('target_everytype', 'n_btag_total', 'met_phi',
-                          'kappa3_value', 'target_sigbg', 'spanet_assignment')
+                          'kappa3_value', 'target_sigbg')
     for k in keys_arr:
         out[k] = np.concatenate([p[k] for p in parts])
     for k in ('jets', 'truth_pairing', 'truth_valid', 'll_cloud'):
@@ -108,7 +74,5 @@ def load_concat(cfg: dict, input_names: list[str], **kwargs) -> dict:
     for c in parts[0]['hl']:
         out['hl'][c] = np.concatenate([p['hl'][c] for p in parts])
     out['N'] = sum(p['N'] for p in parts)
-    out['global_event_id'] = _global_event_id(out['target_everytype'],
-                                              out['kappa3_value'].astype(np.float64))
     return out
 

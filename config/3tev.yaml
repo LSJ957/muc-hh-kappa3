@@ -8,6 +8,37 @@ models_dir:    models/3tev
 analysis_dir:  analysis/3tev
 dll_dir:       dll/3tev
 
+# ── Analysis physics inputs (EDIT for your own MC set) ──────────────────────
+# Luminosity, per-process background cross sections and the κ3 signal
+# cross-section table are inputs, not code constants: replace them with the
+# values of your own generation (MG banner "Integrated weight").
+physics:
+  lumi_fb_inv: 1000.0                       # 1 ab⁻¹
+  # signal σ(μ+μ- → HHνν̄) [pb] per κ3 point (BR(H→bb)² applied in code).
+  # Add/remove κ3 points freely — dll.fit_kappa_grid selects the scan.
+  kappa3_xsec_pb:
+    0.2: 0.0016855439
+    0.4: 0.0014420082
+    0.6: 0.0012382819
+    0.8: 0.0010634673
+    0.9: 0.0009909105
+    1.0: 0.0009278950
+    1.1: 0.0008725252
+    1.2: 0.0008250127
+    1.4: 0.0007583037
+    1.6: 0.0007267047
+    1.8: 0.0007312202
+  # background processes: target_everytype id → name, σ [pb], and whether one
+  # factor BR(H→bb) applies (single-Higgs backgrounds decayed to bb)
+  backgrounds:
+    1: {name: hqqvv, xsec_pb: 0.0054554757, apply_br_hbb: true}
+    2: {name: wwvv,  xsec_pb: 0.0195176659}
+    3: {name: zzvv,  xsec_pb: 0.0121599876}
+    4: {name: ttvv,  xsec_pb: 0.0022278844}
+    5: {name: ww,    xsec_pb: 0.0091913000}
+    6: {name: zz,    xsec_pb: 0.0007549620}
+    7: {name: tt,    xsec_pb: 0.0077916000}
+
 # Root directory holding the raw Delphes .root files.  Resolved by
 # `config_loader.resolve_paths`: env var `HHML_DATA_ROOT` takes precedence
 # over this yaml value.  Replace this placeholder with your own path or
@@ -122,4 +153,3 @@ training:
   split: [0.70, 0.15, 0.15]   # 70/15/15 is fixed in lib/splits.py; only
                               # split[1] (SPANet val fraction) is read by 02a
   epochs_final: 55
-  ml2_btag_cut: -1            # 2026-05-27: NO BTAG cut at training (κ-irrelevant)

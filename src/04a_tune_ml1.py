@@ -57,27 +57,7 @@ def build_inputs_ml1(cfg):
     drop = DEFAULT_DROP
     n_globals = len(MA.kept_globals(drop))
     inputs = cfg['ml_usage']['ml1']['sigbg']
-    # SPANET_SHARED_SPLIT needs truth_valid for canonical stratification (small cost).
-    sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
-    assign = np.concatenate([np.load(os.path.join(cfg['models_dir'], f'assign_{nm}.npy'))
-                             for nm in inputs]).astype(np.int8)
-    assert len(assign) == sb['N'], 'assign files stale vs h5 — re-run 03'
-    rec = recompute_hl_from_assignment(sb['jets'], assign, sb['hl']['met'], sb['met_phi'])
-    for k, v in rec.items(): sb['hl'][k] = v
-    jc, jb = MA.build_jet_tokens(sb['jets'], sb['met_phi'], False)
-    ht     = MA.build_higgs_tokens(sb['jets'], assign, False)
-    gnt    = MA.build_globals_non_tda(sb['hl'], False, drop=drop)
-    gtda   = MA.build_globals_tda(sb['hl'])
-    llc    = sb['ll_cloud']
-    y = sb['target_sigbg'].astype(np.float32)
-    # SPANET_SHARED_SPLIT=1 → same canonical stratify as 02/04 so all three stages
-    # produce one identical 70/15/15 partition.
-    if os.environ.get('SPANET_SHARED_SPLIT', '0') == '1':
-        from lib.splits import canonical_sigbg_strata
-        _strata = canonical_sigbg_strata(y, sb['truth_valid'])
-        sp = make_split_70_15_15(_strata, seed=cfg['training']['seed'])
-    else:
-        sp = make_split_70_15_15(y, seed=cfg['training']['seed'])
+    sp = make_split_70_15_15(y, seed=cfg['training']['seed'])
     X = dict(jet_cont=jc, jet_btag=jb, higgs_tok=ht,
              globals_non_tda=gnt, globals_tda=gtda, ll_cloud=llc)
     Xtr = {k: v[sp['idx_train']] for k, v in X.items()}
@@ -85,11 +65,11 @@ def build_inputs_ml1(cfg):
     ytr = y[sp['idx_train']]; yva = y[sp['idx_val']]
     # tune/train loss-function parity: the same physics-
     # weight × class-weight recipe used by 04_train_ml1.py must drive Optuna.
-    n_gen_proc = cfg['inputs'][inputs[0]].get('n_gen_per_process')
+    n_gen_proc = int(cfg['inputs'][inputs[0]]['n_gen_per_process'])
     sw_tr, sw_va, cw_ratio = ml1_sample_weights(
-        sb['target_sigbg'], sb['target_everytype'], sb['n_btag_total'],
+        sb['target_sigbg'], sb['target_everytype'],
         sp['idx_train'], sp['idx_val'], ytr, yva,
-        apply_btag_cut=False, n_gen_per_process=n_gen_proc)
+        cfg['physics'], n_gen_proc)
     return Xtr, ytr, Xva, yva, sw_tr, sw_va, cw_ratio, n_globals, drop
 
 

@@ -2,7 +2,7 @@
 
 Config schema (per stage)
 ─────────────────────────
-stage:           '3tev' or '10tev'  (must match the PIPELINE_STAGE env var)
+stage:           '3tev' or '10tev'  (used only for logging/labels)
 sqrts_TeV:       3.0 or 10.0
 data_root:       OPTIONAL default for the ${data_root} placeholder in roots
                  (the HHML_DATA_ROOT env var takes precedence)
@@ -10,6 +10,13 @@ data_dir:        relative/absolute path where extracted h5s go
 models_dir:      relative/absolute path for model weights
 analysis_dir:    relative/absolute path for FI/correlation/history outputs
 dll_dir:         relative/absolute path for DLL outputs
+
+physics:                             # ALL stage-dependent physics inputs
+  lumi_fb_inv: float                 # integrated luminosity [fb⁻¹]
+  kappa3_xsec_pb: {κ3: σ_pb, ...}    # signal σ per κ3 point (BR² in code);
+                                     # must contain κ3 = 1.0
+  backgrounds:                       # target_everytype id → process
+    <id>: {name: str, xsec_pb: float, apply_br_hbb: bool (optional)}
 
 inputs:                              # named input registry
   <name>:
@@ -69,7 +76,6 @@ training:
   split: [0.70, 0.15, 0.15]          # 70/15/15 fixed in lib/splits.py;
                                      # only split[1] (SPANet val frac) is read
   epochs_final: int                  # both stages
-  ml2_btag_cut: int                  # n_btag_total >= this for ML2 pool (-1 = off)
 """
 import os
 import yaml
@@ -81,34 +87,35 @@ def load_config(path: str) -> dict:
     with open(path) as f:
         cfg = yaml.safe_load(f)
     _validate(cfg, path)
-    # lib.physics_constants selects LUMI and the κ-xsec tables from the
-    # PIPELINE_STAGE env var at import time (default '3tev').  A stage/config
-    # mismatch silently mis-weights every yield and skips κ points absent from
-    # the wrong table — fail loud here instead.
-    try:
-        from . import physics_constants as _pc
-    except ImportError:                       # lib/ placed on sys.path directly
-        import physics_constants as _pc
-    if cfg['stage'] != _pc._STAGE:
-        raise RuntimeError(
-            f"config stage '{cfg['stage']}' != PIPELINE_STAGE '{_pc._STAGE}' — "
-            f"export PIPELINE_STAGE={cfg['stage']} before running "
-            f"(run_all.sh does this automatically)")
     return cfg
 
 
 def _validate(cfg: dict, path: str):
     req = ['stage', 'sqrts_TeV', 'data_dir', 'models_dir', 'analysis_dir', 'dll_dir',
-           'inputs', 'ml_usage', 'dll', 'optuna', 'training']
+           'physics', 'inputs', 'ml_usage', 'dll', 'optuna', 'training']
     miss = [k for k in req if k not in cfg]
     if miss:
         raise ValueError(f'config {path}: missing top-level keys: {miss}')
+    # physics — every weight in the pipeline flows from this block
+    phys = cfg['physics']
+    for key in ('lumi_fb_inv', 'kappa3_xsec_pb', 'backgrounds'):
+        if key not in phys:
+            raise ValueError(f'physics.{key} missing')
+    if 1.0 not in {float(k) for k in phys['kappa3_xsec_pb']}:
+        raise ValueError('physics.kappa3_xsec_pb must contain κ3 = 1.0 '
+                         '(signal normalisation + anchor)')
+    for pid, v in phys['backgrounds'].items():
+        if 'name' not in v or 'xsec_pb' not in v:
+            raise ValueError(f'physics.backgrounds[{pid}]: needs "name" and "xsec_pb"')
     # inputs
     for name, spec in cfg['inputs'].items():
         if 'h5' not in spec or 'roots' not in spec:
             raise ValueError(f'inputs.{name}: needs "h5" and "roots"')
         if not isinstance(spec['roots'], list) or not spec['roots']:
             raise ValueError(f'inputs.{name}.roots must be a non-empty list')
+        if 'n_gen_per_process' not in spec and 'n_gen_per_kappa' not in spec:
+            raise ValueError(f'inputs.{name}: needs n_gen_per_process or '
+                             f'n_gen_per_kappa (generated events, for weights)')
     # ml_usage — top-level and per-head required sub-fields (silent KeyErrors
     # at runtime are user-hostile; fail loud here).
     for key in ('ml1', 'ml2', 'spanet'):
