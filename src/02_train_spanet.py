@@ -40,22 +40,21 @@ import lib.spanet_engine as SE
 def log(m=''): print(f'[{time.strftime("%H:%M:%S")}] {m}', flush=True)
 
 
-def build_dataset(cfg, train_inputs, ll=False):
+def build_dataset(cfg, train_inputs):
     """Concat all training inputs; transform jets to 6-feature; build HH4bDataset.
     `truth_valid` selects rows usable for the assignment loss."""
     parts = []
     for nm in train_inputs:
-        parts.append(load_input(cfg, nm, load_jets=True, load_truth=True, load_ll_cloud=ll))
+        parts.append(load_input(cfg, nm, load_jets=True, load_truth=True, load_ll_cloud=False))
     jets    = np.concatenate([p['jets'] for p in parts]).astype(np.float32)
     sig_lab = np.concatenate([p['target_sigbg'] for p in parts]).astype(np.int64)
     tp      = np.concatenate([p['truth_pairing'] for p in parts]).astype(np.int64)
     tv      = np.concatenate([p['truth_valid']   for p in parts]).astype(bool)
-    ll_c    = np.concatenate([p['ll_cloud']      for p in parts]).astype(np.float32) if ll else None
     jets6 = transform_6(jets)                                # (N,4,6)
-    return jets6, sig_lab, tp, tv, ll_c
+    return jets6, sig_lab, tp, tv
 
 
-def make_loaders(jets6, sig_lab, tp, tv, ll_c, batch, seed=42, val_frac=0.15):
+def make_loaders(jets6, sig_lab, tp, tv, batch, seed=42, val_frac=0.15):
     """Stratified train/val split for SPANet.
 
     Two modes — selected at *call time* via the SPANET_SHARED_SPLIT env var:
@@ -82,7 +81,7 @@ def make_loaders(jets6, sig_lab, tp, tv, ll_c, batch, seed=42, val_frac=0.15):
     import os
     use_shared = os.environ.get('SPANET_SHARED_SPLIT', '0') == '1'
     N = len(jets6)
-    full = SE.HH4bDataset(jets6, sig_lab, tp, tv, ll_c)
+    full = SE.HH4bDataset(jets6, sig_lab, tp, tv)
     from lib.splits import canonical_sigbg_strata
     strata = canonical_sigbg_strata(sig_lab, tv)   # single source of truth
     if use_shared:
@@ -102,13 +101,12 @@ def make_loaders(jets6, sig_lab, tp, tv, ll_c, batch, seed=42, val_frac=0.15):
            DataLoader(va_ds, batch_size=batch, shuffle=False, num_workers=0)
 
 
-def build_cfg_from_hp(hp: dict, version='A', n_jet=4, epochs=20) -> dict:
+def build_cfg_from_hp(hp: dict, n_jet=4, epochs=20) -> dict:
     """Translate a flat HP dict (jet_embed_dim, n_attn_heads, n_attn_layers,
-    dropout, lr, wd, ll_input) into the cfg dict the engine's SPANet/SPANetLoss/
+    dropout, lr, wd) into the cfg dict the engine's SPANet/SPANetLoss/
     get_lr_scheduler classes expect.  Defaults follow the existing SPANet-A."""
     embed = int(hp.get('jet_embed_dim', hp.get('embed_dim', 64)))
     return dict(
-        version            = version,
         jet_input_dim      = 6,
         n_jets             = n_jet,
         # encoder
@@ -134,12 +132,6 @@ def build_cfg_from_hp(hp: dict, version='A', n_jet=4, epochs=20) -> dict:
         warmup_epochs      = max(1, int(round(float(hp.get('warmup_frac', 0.10)) * epochs))),
         epochs             = epochs,
         batch_size         = int(hp.get('batch', 1024)),
-        # LL stream (version B only)
-        ll_input           = bool(hp.get('ll_input', False)),
-        const_embed_dim    = int(hp.get('const_embed_dim', 32)),
-        const_n_heads      = int(hp.get('const_n_heads', 2)),
-        const_n_layers     = int(hp.get('const_n_layers', 2)),
-        max_const_per_jet  = 10,
     )
 
 
@@ -156,7 +148,7 @@ def train_and_save(cfg_yaml, hp, out_dir, epochs, batch=1024, device=None):
     torch.manual_seed(_seed); torch.cuda.manual_seed_all(_seed); np.random.seed(_seed)
     train_inputs = cfg['ml_usage']['spanet']['train']
     log(f'building dataset from inputs: {train_inputs}')
-    jets6, ycls, yas, tv, llc = build_dataset(cfg, train_inputs, ll=hp.get('ll_input', False))
+    jets6, ycls, yas, tv = build_dataset(cfg, train_inputs)
     jet_mean, jet_std = compute_mean_std(jets6)
     log(f'jets6 shape={jets6.shape}  feature_names={FEATURE_NAMES}')
     log(f'jet_mean={jet_mean.round(3).tolist()}')
@@ -164,7 +156,7 @@ def train_and_save(cfg_yaml, hp, out_dir, epochs, batch=1024, device=None):
     # standardize
     jets6n = ((jets6 - jet_mean) / jet_std).astype(np.float32)
 
-    tr, va = make_loaders(jets6n, ycls, yas, tv, llc, batch=batch,
+    tr, va = make_loaders(jets6n, ycls, yas, tv, batch=batch,
                           seed=cfg['training']['seed'])
 
     spcfg = build_cfg_from_hp(hp, epochs=epochs)

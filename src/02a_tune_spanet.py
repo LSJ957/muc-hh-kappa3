@@ -46,7 +46,7 @@ def sample_hp(trial: optuna.Trial) -> dict:
         raise optuna.TrialPruned(f'jet_embed_dim={jet_embed_dim} % n_attn_heads={n_attn_heads} != 0')
     return dict(jet_embed_dim=jet_embed_dim, n_attn_layers=n_attn_layers,
                 n_attn_heads=n_attn_heads, dropout=dropout,
-                lr=lr, wd=wd, ll_input=False)
+                lr=lr, wd=wd)
 
 
 def objective_factory(cfg_yaml, n_train_global, safety_factor, epochs_trial):
@@ -58,7 +58,7 @@ def objective_factory(cfg_yaml, n_train_global, safety_factor, epochs_trial):
     train_inputs = cfg['ml_usage']['spanet']['train']
 
     # build dataset once outside the trial loop (expensive) — share across trials
-    jets6, ycls, yas, tv, llc = M2.build_dataset(cfg, train_inputs, ll=False)
+    jets6, ycls, yas, tv = M2.build_dataset(cfg, train_inputs)
     jet_mean, jet_std = compute_mean_std(jets6)
     jets6n = ((jets6 - jet_mean) / jet_std).astype(np.float32)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -76,7 +76,7 @@ def objective_factory(cfg_yaml, n_train_global, safety_factor, epochs_trial):
                 f'n_params={n_pars:,} × {safety_factor} > N_train={n_train_global:,}'
             )
         # train epochs_trial epochs and report val assign_acc
-        tr, va = M2.make_loaders(jets6n, ycls, yas, tv, llc,
+        tr, va = M2.make_loaders(jets6n, ycls, yas, tv,
                                  batch=1024, seed=cfg['training']['seed'])
         crit = SE.SPANetLoss(spcfg).to(device)
         opt  = torch.optim.AdamW(m.parameters(), lr=spcfg['lr'], weight_decay=spcfg['weight_decay'])

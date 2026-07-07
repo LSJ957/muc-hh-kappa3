@@ -7,13 +7,9 @@ This is a **library module** consumed by `02_train_spanet.py`,
 and `07_dll_scan.py`.  No stand-alone runner — the legacy `train_spanet()`,
 `apply_spanet_and_save()`, `make_plots()`, `main()` were removed 2026-05-28.
 
-Two architecture versions exist via cfg['version']:
-  • Version A: jet self-attention only (4 jets × jet_input_dim features).
-    This is the ONLY version the shipped scripts configure and train.
-  • Version B: additionally conditions on a constituent particle cloud
-    (4 jets × max_const_per_jet × 4 features — [pT_frac, Δη, Δφ, type]).
-    INACTIVE in this release: 02/02a always build Version A; the Version-B
-    code paths are kept as an experimental extension and are untested here.
+Architecture: jet self-attention over the 4 jet tokens
+(4 jets × jet_input_dim features), followed by a symmetric pairing head
+and a signal/background classification head.
 
 In the active pipeline 02_train_spanet sets `jet_input_dim=6` (the
 `transform_6` output: log_pt, η, sin_φ, cos_φ, log1p(m/M0), btag).
@@ -49,9 +45,8 @@ class HH4bDataset(Dataset):
         label_cls     : int — 0=background, 1=signal
         label_assign  : int — pairing index (0,1,2) or -1
         truth_valid   : bool — whether assignment label is usable
-        ll_cloud      : (40, 4) float32 [Version B only]
     """
-    def __init__(self, jets, labels_cls, labels_assign, truth_valid, ll_cloud=None):
+    def __init__(self, jets, labels_cls, labels_assign, truth_valid):
         # NB: met / met_phi are intentionally NOT stored — they were unused by
         # SPANet.forward / SPANetLoss.forward; carrying them transferred the
         # tensors to the GPU every batch for no reason.
@@ -59,7 +54,6 @@ class HH4bDataset(Dataset):
         self.labels_cls = torch.from_numpy(labels_cls).long()
         self.labels_assign = torch.from_numpy(labels_assign).long()
         self.truth_valid = torch.from_numpy(truth_valid).bool()
-        self.ll_cloud = torch.from_numpy(ll_cloud).float() if ll_cloud is not None else None
 
     def __len__(self):
         return len(self.jets)
@@ -71,53 +65,12 @@ class HH4bDataset(Dataset):
             'label_assign': self.labels_assign[idx],
             'truth_valid': self.truth_valid[idx],
         }
-        if self.ll_cloud is not None:
-            item['ll_cloud'] = self.ll_cloud[idx]
         return item
 
 
 # ═════════════════════════════════════════════════════════════════════════
 # 2.  MODEL: SPANet ARCHITECTURE
 # ═════════════════════════════════════════════════════════════════════════
-
-class ConstituentEncoder(nn.Module):
-    """
-    Mini Transformer for per-jet constituent encoding (Version B).
-    Input: (batch, n_const, 4) per jet → (batch, const_embed_dim) per jet
-    (Channels: [pT_frac, Δη, Δφ, type]; mask channel dropped 2026-06-02.)
-    """
-    def __init__(self, cfg):
-        super().__init__()
-        self.embed = nn.Sequential(
-            nn.Linear(4, cfg['const_embed_dim']),
-            nn.GELU(),
-            nn.LayerNorm(cfg['const_embed_dim']),
-        )
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=cfg['const_embed_dim'],
-            nhead=cfg['const_n_heads'],
-            dim_feedforward=cfg['const_embed_dim'] * 4,
-            dropout=cfg['dropout'],
-            activation='gelu',
-            batch_first=True,
-        )
-        self.encoder = nn.TransformerEncoder(
-            encoder_layer, num_layers=cfg['const_n_layers']
-        )
-
-    def forward(self, x, mask):
-        """
-        x    : (batch, n_const, 4)
-        mask : (batch, n_const) bool — True where padded (no particle)
-        """
-        h = self.embed(x)                     # (B, n_const, D)
-        h = self.encoder(h, src_key_padding_mask=mask)  # (B, n_const, D)
-        # Mean-pool over non-padded constituents
-        valid = (~mask).unsqueeze(-1).float()  # (B, n_const, 1)
-        n_valid = valid.sum(dim=1).clamp(min=1)
-        pooled = (h * valid).sum(dim=1) / n_valid  # (B, D)
-        return pooled
-
 
 class JetEncoder(nn.Module):
     """
@@ -245,28 +198,18 @@ class ClassificationHead(nn.Module):
 
 class SPANet(nn.Module):
     """
-    Full SPANet model for HH→4b: jet assignment + classification.
+    Full SPANet model for HH→4b: jet assignment + classification,
+    operating on the 4 jet tokens (4 × jet_input_dim).
 
-    Version A: jets only  (4 × jet_input_dim)
-    Version B: jets (4 × jet_input_dim) + constituent cloud (4 × n_const × 4)
-
-    The active pipeline uses jet_input_dim=6, the transform_6 output
+    The pipeline uses jet_input_dim=6, the transform_6 output
     [log_pt, η, sin_φ, cos_φ, log1p(m/M0), btag]; the SPANet checkpoint
     stores the cfg so 03_precompute_pairing reads the matching value.
     """
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.version = cfg['version']
-
-        # default 6 matches transform_6(); 10 is the legacy raw layout kept for
-        # reference but never used by the current 02_train_spanet pipeline.
+        # default 6 matches transform_6()
         jet_input_dim = cfg.get('jet_input_dim', 6)
-
-        if self.version == 'B':
-            self.const_encoder = ConstituentEncoder(cfg)
-            jet_input_dim += cfg['const_embed_dim']
-
         self.jet_encoder = JetEncoder(jet_input_dim, cfg)
         D = cfg['jet_embed_dim']
 
@@ -280,11 +223,9 @@ class SPANet(nn.Module):
             nn.Linear(64, 1),  # predict m_H in units of M_HIGGS
         )
 
-    def forward(self, jets, ll_cloud=None, ll_mask=None):
+    def forward(self, jets):
         """
-        jets     : (B, 4, jet_input_dim)
-        ll_cloud : (B, 40, 4) [Version B only]
-        ll_mask  : (B, 40) bool, True=padded [Version B only]
+        jets : (B, 4, jet_input_dim)
 
         Returns dict:
             assign_logits : (B, 3)
@@ -292,28 +233,6 @@ class SPANet(nn.Module):
             mass_pred     : (B, 2)  predicted Higgs masses (normalized by M_H)
         """
         jet_features = jets  # (B, 4, jet_input_dim)
-
-        if self.version == 'B' and ll_cloud is not None:
-            # Encode constituents per jet
-            B = jets.shape[0]
-            n_const = self.cfg['max_const_per_jet']
-            # ll_cloud is (B, 40, 4) = 4 jets × 10 constituents × 4 features
-            # Reshape to (B*4, 10, 4)
-            ll_per_jet = ll_cloud.reshape(B, 4, n_const, 4)
-            ll_flat = ll_per_jet.reshape(B * 4, n_const, 4)
-
-            # Mask: padded slot has all-zero feature vector (pT_frac=Δη=Δφ=type=0).
-            # Using pT_frac==0 as the detection signal (a real particle never has
-            # pT_frac=0 because of the divisor `jet_pt + 1e-9` in extract_engine).
-            if ll_mask is None:
-                ll_mask_flat = (ll_flat[:, :, 0] == 0)
-            else:
-                ll_mask_flat = ll_mask.reshape(B * 4, n_const)
-
-            const_emb = self.const_encoder(ll_flat, ll_mask_flat)  # (B*4, D_c)
-            const_emb = const_emb.reshape(B, 4, -1)               # (B, 4, D_c)
-
-            jet_features = torch.cat([jet_features, const_emb], dim=-1)
 
         # Encode jets with self-attention
         jet_emb = self.jet_encoder(jet_features)   # (B, 4, D)
@@ -512,8 +431,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scheduler, device):
                  for k, v in batch.items()}
 
         # Forward
-        ll_cloud = batch.get('ll_cloud', None)
-        outputs = model(batch['jets'], ll_cloud=ll_cloud)
+        outputs = model(batch['jets'])
         losses = criterion(outputs, batch)
 
         # Backward
@@ -547,8 +465,7 @@ def evaluate(model, loader, criterion, device):
         batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v
                  for k, v in batch.items()}
 
-        ll_cloud = batch.get('ll_cloud', None)
-        outputs = model(batch['jets'], ll_cloud=ll_cloud)
+        outputs = model(batch['jets'])
         losses = criterion(outputs, batch)
 
         for k, v in losses.items():
@@ -716,7 +633,7 @@ def recompute_hl_from_assignment(jets_raw, assignment, met, met_phi):
 
 @torch.no_grad()
 def run_inference(model, jets_raw, jet_mean, jet_std, device,
-                  ll_cloud=None, batch_size=2048):
+                  batch_size=2048):
     """
     Run SPANet inference on a dataset.
 
@@ -736,12 +653,7 @@ def run_inference(model, jets_raw, jet_mean, jet_std, device,
     for start in range(0, N, batch_size):
         end = min(start + batch_size, N)
         batch_jets = torch.from_numpy(jets_norm[start:end]).float().to(device)
-
-        batch_ll = None
-        if ll_cloud is not None:
-            batch_ll = torch.from_numpy(ll_cloud[start:end]).float().to(device)
-
-        outputs = model(batch_jets, ll_cloud=batch_ll)
+        outputs = model(batch_jets)
 
         cls_logits = outputs['cls_logits'].cpu().numpy()
         cls_probs = 1.0 / (1.0 + np.exp(-cls_logits))

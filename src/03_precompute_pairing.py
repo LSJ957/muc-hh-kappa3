@@ -45,7 +45,6 @@ def main():
     model = SE.SPANet(spcfg).to(device); model.load_state_dict(ck['model_state_dict']); model.eval()
     log(f'loaded SPANet ({pt})  device={device}  jet_features={jet_mean.shape[0]}')
 
-    is_B = spcfg.get('version') == 'B'
     targets = [args.only] if args.only else list(cfg['inputs'])
     for nm in targets:
         if nm not in cfg['inputs']:
@@ -62,19 +61,14 @@ def main():
                 log(f'  [skip] {nm}: {os.path.basename(out)} up to date')
                 continue
             log(f'  [stale] {nm}: {os.path.basename(out)} older than h5/spanet.pt → recompute')
-        # Version B (LL constituent cloud) requires loading ll_cloud per file
-        # — previously dropped which would silently mis-pair.  Currently the
-        # active pipeline is Version A so ll_cloud stays None.
         with h5py.File(h5p, 'r') as f:
             jets_raw = f['jets'][:].astype(np.float32)
-            ll_cloud = f['ll_cloud'][:].astype(np.float32) if is_B and 'll_cloud' in f else None
         jets6 = transform_6(jets_raw)
-        log(f'  {nm}: N={len(jets6):,} → infer assignment'
-            + (f'  (LL cloud: {ll_cloud.shape})' if ll_cloud is not None else ''))
+        log(f'  {nm}: N={len(jets6):,} → infer assignment')
         # run_inference normalises internally — pass raw 6-feature jets + the
-        # checkpoint's true jet_mean/std (no zeros_like trick).
+        # checkpoint's true jet_mean/std.
         _, assign, _ = SE.run_inference(model, jets6, jet_mean=jet_mean, jet_std=jet_std,
-                                        device=device, ll_cloud=ll_cloud)
+                                        device=device)
         np.save(out, assign.astype(np.int8))
         log(f'    saved {out}  (assignment hist: {np.bincount(assign, minlength=3).tolist()})')
 

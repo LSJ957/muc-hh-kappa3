@@ -43,48 +43,19 @@ inputs:
     h5: data/3tev/kappa_scan_main.h5
     n_gen_per_kappa: 100000
     roots:
-      # main 19-point grid (0.1 spacing 0.2 .. 2.0)
+      # the 11-point paper scan grid (dll.fit_kappa_grid)
       - ${data_root}/mm_hhx_kappa_k3_0.2_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.3_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_0.4_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.5_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_0.6_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.7_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_0.8_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_0.9_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_1.0_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_1.1_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_1.2_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.3_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_1.4_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.5_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_1.6_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.7_k2v_1_3tev.root
       - ${data_root}/mm_hhx_kappa_k3_1.8_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.9_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_2.0_k2v_1_3tev.root
-      # fine 0.01-spacing grid (extras: included in h5; user opts in via dll.fit_kappa_grid)
-      - ${data_root}/mm_hhx_kappa_k3_0.91_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.92_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.93_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.94_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.95_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.96_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.97_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.98_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_0.99_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.01_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.02_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.03_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.04_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.05_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.06_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.07_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.08_k2v_1_3tev.root
-      - ${data_root}/mm_hhx_kappa_k3_1.09_k2v_1_3tev.root
-    kappa3: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0,
-             0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99,
-             1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09]
+    kappa3: [0.2, 0.4, 0.6, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4, 1.6, 1.8]
     target_sigbg:     1
     target_everytype: 0
     is_signal:        true
