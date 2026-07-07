@@ -184,6 +184,11 @@ git-ignored.
 5. final −ΔlnL(κ₃) plot at `dll/<stage>/fig_dll_curve.png`; per-κ₃ table at
    `dll/<stage>/dll_per_kappa.md`
 
+To reproduce the paper's 10 TeV intervals exactly, uncomment the
+`dll.fit_window: [0.8, 1.2]` line in `config/10tev.yaml` (the paper
+restricts the polynomial fit to the refined grid around the likelihood
+well; the default here fits the full scan range).
+
 A note on reproducibility: given fixed trained networks, the likelihood scan
 and CL extraction (steps 07 and 08) are deterministic. The network trainings themselves (steps 02, 04,
 05) run on GPU and are not bit-reproducible, so a retrained pipeline lands on
