@@ -32,9 +32,11 @@ from lib import ml_arch as MA
 
 
 def norm_hist(vals, edges, w=None):
+    """Fraction-per-bin normalization: bin heights sum to 1 (paper
+    convention), NOT a probability density."""
     h, _ = np.histogram(vals, bins=edges, weights=w)
-    area = h.sum() * np.diff(edges)
-    return h / np.where(area > 0, area, 1)
+    s = h.sum()
+    return h / (s if s > 0 else 1)
 
 
 # display labels for the --split-bg legend (fallback: raw config name)
@@ -95,7 +97,7 @@ def main():
     edges = np.linspace(0, 1, 41)
     if args.split_bg:
         # stacked per-process decomposition; the stack's top edge equals
-        # the default single-line total (same weights, same unit-area norm)
+        # the default single-line total (same weights, same normalization)
         tev1 = sb['target_everytype'][idx1]
         m_bg = y1 < 0.5
         bg_procs = sorted(cfg['physics']['backgrounds'].items())
@@ -105,11 +107,11 @@ def main():
             sel = m_bg & (tev1 == int(pid))
             h, _ = np.histogram(d1[sel], bins=edges, weights=w1[sel])
             hs.append(h)
-        area = np.sum(hs, axis=0).sum() * np.diff(edges)
-        area = np.where(area > 0, area, 1)
+        tot = np.sum(hs, axis=0).sum()
+        tot = tot if tot > 0 else 1
         bottom = np.zeros(len(edges) - 1)
         for j, ((pid, meta), h) in enumerate(zip(bg_procs, hs)):
-            hn = h / area
+            hn = h / tot
             aL.fill_between(edges, np.r_[bottom, bottom[-1]],
                             np.r_[bottom + hn, (bottom + hn)[-1]],
                             step='post', color=cmap(j % 10), lw=0, alpha=0.8,
@@ -119,11 +121,16 @@ def main():
     else:
         aL.stairs(norm_hist(d1[y1 < 0.5], edges, w=w1[y1 < 0.5]), edges,
                   color='0.45', lw=1.5, label='background')
-    aL.stairs(norm_hist(d1[y1 > 0.5], edges, w=w1[y1 > 0.5]), edges,
-              color='#1f77b4', lw=1.5, label='signal', zorder=3)
+    h_sig = norm_hist(d1[y1 > 0.5], edges, w=w1[y1 > 0.5])
+    aL.stairs(h_sig, edges, color='#1f77b4', lw=1.5, label='signal', zorder=3)
     aL.set_xlabel(r'$\mathcal{D}_{HH}$ score'); aL.set_yscale('log')
-    aL.legend(frameon=False, fontsize=7 if args.split_bg else 9,
-              ncol=2 if args.split_bg else 1)
+    if args.split_bg:
+        # two decades of headroom so the 4-row legend clears every curve
+        ymax = max(float(h_sig.max()), float(bottom.max()))
+        aL.set_ylim(top=ymax * 10**2)
+        aL.legend(frameon=False, fontsize=7, ncol=2, loc='upper left')
+    else:
+        aL.legend(frameon=False, fontsize=9)
     for kv in (k_lo, k_ref, k_hi):
         m = np.abs(k3v - kv) < KAPPA_MATCH_TOL
         if m.any():
@@ -132,7 +139,7 @@ def main():
     aR.set_xlabel(r'$\mathcal{D}_{\kappa_3}$ score')
     aR.legend(frameon=False, fontsize=9)
     for a in (aL, aR):
-        a.set_ylabel('normalised'); a.set_xlim(0, 1)
+        a.set_ylabel('normalized events'); a.set_xlim(0, 1)
     lbl = {'3tev': '3 TeV', '10tev': '10 TeV'}.get(cfg['stage'], cfg['stage'])
     fig.suptitle(f'Muon Collider Simulation — √s = {lbl}, resolved', fontsize=11)
     fig.tight_layout()

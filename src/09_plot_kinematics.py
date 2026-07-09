@@ -41,9 +41,11 @@ BG_LABELS = {
 
 
 def norm_hist(vals, edges, w=None):
+    """Fraction-per-bin normalization: bin heights sum to 1 (paper
+    convention), NOT a probability density."""
     h, _ = np.histogram(vals, bins=edges, weights=w)
-    area = h.sum() * np.diff(edges)
-    return h / np.where(area > 0, area, 1)
+    s = h.sum()
+    return h / (s if s > 0 else 1)
 
 
 def main():
@@ -86,17 +88,17 @@ def main():
         edges = np.linspace(lo, hi, 51)
         if args.split_bg:
             # stacked per-process decomposition; the stack's top edge equals
-            # the default single-band total (same weights, same unit-area norm)
+            # the default single-band total (same weights, same normalization)
             hs = []
             for pid, meta in bg_procs:
                 sel = tev_bg == int(pid)
                 h, _ = np.histogram(obs_bg[key][sel], bins=edges, weights=w_bg[sel])
                 hs.append(h)
-            area = np.sum(hs, axis=0).sum() * np.diff(edges)
-            area = np.where(area > 0, area, 1)
+            tot = np.sum(hs, axis=0).sum()
+            tot = tot if tot > 0 else 1
             bottom = np.zeros(len(edges) - 1)
             for j, ((pid, meta), h) in enumerate(zip(bg_procs, hs)):
-                hn = h / area
+                hn = h / tot
                 lbl = (BG_LABELS.get(meta['name'], meta['name'])
                        if i_panel == 1 else '_nolegend_')
                 ax.fill_between(edges, np.r_[bottom, bottom[-1]],
@@ -112,23 +114,30 @@ def main():
             h = norm_hist(obs_k[key][m], edges)
             ax.stairs(h, edges, color=colors[kv], lw=1.4,
                       label=rf'$\kappa_3={kv}$', zorder=3)
-        ax.set_xlabel(xlbl); ax.set_ylabel('normalised')
+        ax.set_xlabel(xlbl); ax.set_ylabel('normalized events')
         ax.set_xlim(edges[0], edges[-1])
     if args.split_bg:
-        # signal legend in panel 0, background-process legend in panel 1
+        # signal legend inside panel 0; background-process legend as a
+        # figure-level strip between the suptitle and the panels, so it
+        # never overlaps any histogram
         h0, l0 = axes.flat[0].get_legend_handles_labels()
         sig = [(h, l) for h, l in zip(h0, l0) if 'kappa' in l]
         axes.flat[0].legend([h for h, _ in sig], [l for _, l in sig],
                             frameon=False, fontsize=9)
         h1, l1 = axes.flat[1].get_legend_handles_labels()
         bgh = [(h, l) for h, l in zip(h1, l1) if 'kappa' not in l]
-        axes.flat[1].legend([h for h, _ in bgh], [l for _, l in bgh],
-                            frameon=False, fontsize=7, ncol=2)
+        fig.legend([h for h, _ in bgh], [l for _, l in bgh],
+                   frameon=False, fontsize=9, ncol=4,
+                   loc='upper center', bbox_to_anchor=(0.5, 0.955))
     else:
         axes.flat[0].legend(frameon=False, fontsize=9)
     lbl = {'3tev': '3 TeV', '10tev': '10 TeV'}.get(cfg['stage'], cfg['stage'])
     fig.suptitle(f'Muon Collider Simulation — √s = {lbl}, resolved', fontsize=11)
-    fig.tight_layout()
+    if args.split_bg:
+        # leave a horizontal strip for the figure-level process legend
+        fig.tight_layout(rect=(0, 0, 1, 0.90))
+    else:
+        fig.tight_layout()
     stem = 'fig_kinematics_splitbg' if args.split_bg else 'fig_kinematics'
     out = os.path.join(cfg['analysis_dir'], f'{stem}.png')
     fig.savefig(out, dpi=200, bbox_inches='tight')
