@@ -121,8 +121,8 @@ endpoints or background list propagates automatically):
 | script | figure | output |
 |---|---|---|
 | `08_dll_plots.py` | −ΔlnL(κ₃) scan + poly4 fit + 68/95% CL bands; log₁₀(S/B) template map | `dll/<stage>/fig_dll_curve.png`, `fig_logSB.png` |
-| `09_plot_kinematics.py` | kinematic distributions, κ₃ slices vs weighted background | `analysis/<stage>/fig_kinematics.png` |
-| `10_plot_scores.py` | D_HH / D_κ3 score distributions | `analysis/<stage>/fig_scores.png` |
+| `09_plot_kinematics.py` | kinematic distributions, κ₃ slices vs weighted background (`--split-bg`: per-process colour stack) | `analysis/<stage>/fig_kinematics.png` |
+| `10_plot_scores.py` | D_HH / D_κ3 score distributions (`--split-bg`: per-process colour stack) | `analysis/<stage>/fig_scores.png` |
 | `11_plot_shap.py` | SHAP beeswarm for both classifiers (needs `pip install shap`) | `analysis/<stage>/fig_shap.png` |
 
 ## Key design choices

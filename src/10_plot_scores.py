@@ -4,7 +4,12 @@
           background (from ml1_scores.npz — no inference needed)
   right : D_κ3 evaluated on the independent κ3 slices (κ_low / κ_ref /
           κ_high from the config) — light GPU inference on that sample.
-Output: analysis/<stage>/fig_scores.png"""
+
+By default the background in the left panel is a single line (the cross-
+section-weighted sum of all processes, normalized to unit area).  With
+--split-bg it is instead drawn as a stack, one colour per background
+process; the top edge of the stack equals the default total.
+Output: analysis/<stage>/fig_scores.png  (…_splitbg.png with the flag)"""
 import os, sys, argparse, json
 _LIB = os.environ.get('HHML_CONDA_LIB')
 if _LIB is None:
@@ -32,9 +37,21 @@ def norm_hist(vals, edges, w=None):
     return h / np.where(area > 0, area, 1)
 
 
+# display labels for the --split-bg legend (fallback: raw config name)
+BG_LABELS = {
+    'hqqvv': r'$Hq\bar q\,\nu\bar\nu$', 'wwvv': r'$W^+W^-\nu\bar\nu$',
+    'zzvv':  r'$ZZ\,\nu\bar\nu$',       'ttvv': r'$t\bar t\,\nu\bar\nu$',
+    'ww':    r'$W^+W^-$',               'zz':   r'$ZZ$',
+    'tt':    r'$t\bar t$',              'hzvv': r'$HZ\,\nu\bar\nu$',
+}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--config', required=True)
+    ap.add_argument('--split-bg', action='store_true',
+                    help='stack the background processes in individual colours '
+                         '(cross-section weighted) instead of the single total line')
     args = ap.parse_args()
     cfg = load_config(args.config); cfg = resolve_paths(cfg, os.path.join(HERE, os.pardir))
     M = cfg['models_dir']
@@ -76,12 +93,37 @@ def main():
 
     fig, (aL, aR) = plt.subplots(1, 2, figsize=(9.5, 3.6))
     edges = np.linspace(0, 1, 41)
+    if args.split_bg:
+        # stacked per-process decomposition; the stack's top edge equals
+        # the default single-line total (same weights, same unit-area norm)
+        tev1 = sb['target_everytype'][idx1]
+        m_bg = y1 < 0.5
+        bg_procs = sorted(cfg['physics']['backgrounds'].items())
+        cmap = plt.get_cmap('tab10')
+        hs = []
+        for pid, meta in bg_procs:
+            sel = m_bg & (tev1 == int(pid))
+            h, _ = np.histogram(d1[sel], bins=edges, weights=w1[sel])
+            hs.append(h)
+        area = np.sum(hs, axis=0).sum() * np.diff(edges)
+        area = np.where(area > 0, area, 1)
+        bottom = np.zeros(len(edges) - 1)
+        for j, ((pid, meta), h) in enumerate(zip(bg_procs, hs)):
+            hn = h / area
+            aL.fill_between(edges, np.r_[bottom, bottom[-1]],
+                            np.r_[bottom + hn, (bottom + hn)[-1]],
+                            step='post', color=cmap(j % 10), lw=0, alpha=0.8,
+                            label=BG_LABELS.get(meta['name'], meta['name']),
+                            zorder=1)
+            bottom += hn
+    else:
+        aL.stairs(norm_hist(d1[y1 < 0.5], edges, w=w1[y1 < 0.5]), edges,
+                  color='0.45', lw=1.5, label='background')
     aL.stairs(norm_hist(d1[y1 > 0.5], edges, w=w1[y1 > 0.5]), edges,
-              color='#1f77b4', lw=1.5, label='signal')
-    aL.stairs(norm_hist(d1[y1 < 0.5], edges, w=w1[y1 < 0.5]), edges,
-              color='0.45', lw=1.5, label='background')
+              color='#1f77b4', lw=1.5, label='signal', zorder=3)
     aL.set_xlabel(r'$\mathcal{D}_{HH}$ score'); aL.set_yscale('log')
-    aL.legend(frameon=False, fontsize=9)
+    aL.legend(frameon=False, fontsize=7 if args.split_bg else 9,
+              ncol=2 if args.split_bg else 1)
     for kv in (k_lo, k_ref, k_hi):
         m = np.abs(k3v - kv) < KAPPA_MATCH_TOL
         if m.any():
@@ -94,7 +136,8 @@ def main():
     lbl = {'3tev': '3 TeV', '10tev': '10 TeV'}.get(cfg['stage'], cfg['stage'])
     fig.suptitle(f'Muon Collider Simulation — √s = {lbl}, resolved', fontsize=11)
     fig.tight_layout()
-    out = os.path.join(cfg['analysis_dir'], 'fig_scores.png')
+    stem = 'fig_scores_splitbg' if args.split_bg else 'fig_scores'
+    out = os.path.join(cfg['analysis_dir'], f'{stem}.png')
     fig.savefig(out, dpi=200, bbox_inches='tight')
     print(f'saved {out}')
 
