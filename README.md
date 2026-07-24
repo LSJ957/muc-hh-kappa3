@@ -9,8 +9,22 @@ centre-of-mass energies — only the YAML config differs.
 .root files  →  features h5  →  SPANet pairing  →  D_HH / D_κ3 classifiers  →  −ΔlnL(κ₃)
 ```
 
-This repository accompanies a paper in preparation (muon-collider VBF HH → bb̄bb̄,
-resolved + boosted). It contains the **resolved-channel pipeline only**: feature
+<!--
+  ARXIV PLACEHOLDER — once the preprint is posted, replace 26XX.XXXXX with the
+  real identifier in exactly two places: the reference just below, and the
+  BibTeX entry in the "Citation" section at the end of this file.
+    sed -i 's/26XX\.XXXXX/YYMM.NNNNN/g' README.md
+-->
+
+This repository accompanies
+
+> K. Cheung, J. S. Lee, S. Lee and C. Wang,
+> *Probing the trilinear Higgs self-coupling in Higgs boson pair production at
+> multi-TeV muon colliders*,
+> [arXiv:26XX.XXXXX](https://arxiv.org/abs/26XX.XXXXX).
+
+The paper covers both the resolved (4-jet) and the boosted (2 fat-jet)
+regions. This repository contains the **resolved-channel pipeline only**: feature
 extraction (including topological-data-analysis descriptors), the SPANet-style
 jet→Higgs pairing network, the two event classifiers, and the binned
 likelihood scan in κ₃. The release covers the default analysis chain behind
@@ -199,5 +213,19 @@ training with five different random seeds moved the 68% CL width by about
 
 ## Citation
 
-If you use this code, please cite the accompanying paper (reference to be added
-upon publication).
+If you use this code, please cite the accompanying paper:
+
+```bibtex
+@article{Cheung:2026kappa3,
+    author        = "Cheung, Kingman and Lee, Jae Sik and Lee, Soojin and Wang, Chen",
+    title         = "{Probing the trilinear Higgs self-coupling in Higgs boson
+                      pair production at multi-TeV muon colliders}",
+    eprint        = "26XX.XXXXX",
+    archivePrefix = "arXiv",
+    primaryClass  = "hep-ph",
+    year          = "2026"
+}
+```
+
+The eprint number is a placeholder until the preprint is posted; the citation
+key, DOI and journal reference will follow the INSPIRE-HEP entry.
