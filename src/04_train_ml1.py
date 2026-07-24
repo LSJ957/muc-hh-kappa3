@@ -78,18 +78,21 @@ def main():
 
     # ── data ──
     inputs = cfg['ml_usage']['ml1']['sigbg']
+    # truth_valid is loaded because the bool/int8 truth arrays cost almost
+    # nothing and keep the loader call identical across 02 / 04 / 04a.
     sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
-    # apply the SPANet-A pairing precomputed in 03_precompute_pairing
-    assign = np.concatenate([np.load(os.path.join(cfg['models_dir'], f'assign_{nm}.npy'))
-                             for nm in inputs]).astype(np.int8)
+    # apply SPANet-A pairing from 03_precompute_pairing
+    assign_paths = [os.path.join(cfg['models_dir'], f'assign_{nm}.npy') for nm in inputs]
+    assign = np.concatenate([np.load(p).astype(np.int8) for p in assign_paths])
     assert len(assign) == sb['N'], f'assign len {len(assign)} != N {sb["N"]}'
     rec = recompute_hl_from_assignment(sb['jets'], assign, sb['hl']['met'], sb['met_phi'])
     for k, v in rec.items():
         sb['hl'][k] = v
     sb['spanet_assignment'] = assign
-    tgt = sb['target_sigbg']
-    apply_btag_feature_mask = False   # NOCUT: b-tag info kept as a feature, never a pool cut
 
+    tgt = sb['target_sigbg']
+    # NOCUT: no pool filter
+    apply_btag_feature_mask = False
     sp = make_split_70_15_15(tgt, seed=cfg['training']['seed'])
     log(f'  pool N={sb["N"]:,}  pos_frac={float(tgt.mean()):.4f}  '
         f'train/val/test = {len(sp["idx_train"]):,}/{len(sp["idx_val"]):,}/{len(sp["idx_test"]):,}')

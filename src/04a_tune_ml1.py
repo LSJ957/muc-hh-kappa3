@@ -57,20 +57,19 @@ def build_inputs_ml1(cfg):
     drop = DEFAULT_DROP
     n_globals = len(MA.kept_globals(drop))
     inputs = cfg['ml_usage']['ml1']['sigbg']
+    # truth_valid is loaded for parity with 04 (small cost).
     sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
     assign = np.concatenate([np.load(os.path.join(cfg['models_dir'], f'assign_{nm}.npy'))
                              for nm in inputs]).astype(np.int8)
     assert len(assign) == sb['N'], f'assign len {len(assign)} != N {sb["N"]}'
     rec = recompute_hl_from_assignment(sb['jets'], assign, sb['hl']['met'], sb['met_phi'])
-    for k, v in rec.items():
-        sb['hl'][k] = v
+    for k, v in rec.items(): sb['hl'][k] = v
     jc, jb = MA.build_jet_tokens(sb['jets'], sb['met_phi'], False)
     ht     = MA.build_higgs_tokens(sb['jets'], assign, False)
     gnt    = MA.build_globals_non_tda(sb['hl'], False, drop=drop)
     gtda   = MA.build_globals_tda(sb['hl'])
     llc    = sb['ll_cloud']
     y = sb['target_sigbg'].astype(np.float32)
-
     sp = make_split_70_15_15(y, seed=cfg['training']['seed'])
     X = dict(jet_cont=jc, jet_btag=jb, higgs_tok=ht,
              globals_non_tda=gnt, globals_tda=gtda, ll_cloud=llc)
