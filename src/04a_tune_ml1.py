@@ -47,7 +47,7 @@ def sample_hp(trial: optuna.Trial) -> dict:
                        ['64_32_16', '128_64_32', '256_128_64', '384_192_96'])
     batch         = trial.suggest_categorical('batch', [512, 1024])
     if d_token % n_heads != 0:
-        raise optuna.TrialPruned(f'd_token={d_token} %% n_heads={n_heads} != 0')
+        raise optuna.TrialPruned(f'd_token={d_token} % n_heads={n_heads} != 0')
     return dict(d_token=d_token, n_heads=n_heads, n_jet_layers=n_jet_layers,
                 n_ll_layers=n_ll_layers, ffn_dim=d_token * ffn_mult,
                 dropout=dropout, lr=lr, wd=wd, head_dims=head_dims, batch=batch)
@@ -57,6 +57,20 @@ def build_inputs_ml1(cfg):
     drop = DEFAULT_DROP
     n_globals = len(MA.kept_globals(drop))
     inputs = cfg['ml_usage']['ml1']['sigbg']
+    sb = load_concat(cfg, inputs, load_jets=True, load_truth=True, load_ll_cloud=True)
+    assign = np.concatenate([np.load(os.path.join(cfg['models_dir'], f'assign_{nm}.npy'))
+                             for nm in inputs]).astype(np.int8)
+    assert len(assign) == sb['N'], f'assign len {len(assign)} != N {sb["N"]}'
+    rec = recompute_hl_from_assignment(sb['jets'], assign, sb['hl']['met'], sb['met_phi'])
+    for k, v in rec.items():
+        sb['hl'][k] = v
+    jc, jb = MA.build_jet_tokens(sb['jets'], sb['met_phi'], False)
+    ht     = MA.build_higgs_tokens(sb['jets'], assign, False)
+    gnt    = MA.build_globals_non_tda(sb['hl'], False, drop=drop)
+    gtda   = MA.build_globals_tda(sb['hl'])
+    llc    = sb['ll_cloud']
+    y = sb['target_sigbg'].astype(np.float32)
+
     sp = make_split_70_15_15(y, seed=cfg['training']['seed'])
     X = dict(jet_cont=jc, jet_btag=jb, higgs_tok=ht,
              globals_non_tda=gnt, globals_tda=gtda, ll_cloud=llc)
@@ -99,7 +113,7 @@ def main():
             tf.keras.backend.clear_session(); del m
             raise optuna.TrialPruned(f'n_params={n_pars:,} × {safety_fac} > N_train={N_train:,}')
         # weighted_metrics so val_auc matches the sample_weighted loss surface
-        #.  Without this, Optuna's `best_val_auc` would optimise an
+        # Without this, Optuna's `best_val_auc` would optimise an
         # unweighted metric while the final-train loss is weighted → tune/train
         # divergence on the model-selection criterion.
         m.compile(optimizer=optimizers.AdamW(learning_rate=hp['lr'], weight_decay=hp['wd']),
