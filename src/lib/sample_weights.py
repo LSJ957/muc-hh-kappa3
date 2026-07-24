@@ -5,7 +5,7 @@ MUST call the same helpers so Optuna optimises the same loss landscape that
 final training uses.
 
 The recipe is the same for both heads:
-  1) physics weight per event = σ × BR(²) × L / N_gen  (process-aware;
+  1) physics weight per event = σ[pb] × 1000 × BR(²) × L / N_gen  (process-aware;
      σ/L from cfg['physics'], N_gen from the input's config entry)
   2) within each binary class, normalise the mean weight to 1 so the relative
      process ratios are preserved but the absolute scale doesn't fight AdamW.

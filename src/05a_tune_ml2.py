@@ -48,7 +48,7 @@ def sample_hp(trial: optuna.Trial) -> dict:
                        ['32_16_8', '64_32_16', '128_64_32'])
     batch         = trial.suggest_categorical('batch', [256, 512, 1024])
     if d_token % n_heads != 0:
-        raise optuna.TrialPruned(f'd_token={d_token} %% n_heads={n_heads} != 0')
+        raise optuna.TrialPruned(f'd_token={d_token} % n_heads={n_heads} != 0')
     return dict(d_token=d_token, n_heads=n_heads, n_jet_layers=n_jet_layers,
                 n_ll_layers=n_ll_layers, ffn_dim=d_token * ffn_mult,
                 dropout=dropout, lr=lr, wd=wd, head_dims=head_dims, batch=batch)
@@ -64,7 +64,7 @@ def build_inputs_ml2(cfg):
     assert len(assign_all) == kp['N'], 'assign files stale vs h5 — re-run 03'
     rec = recompute_hl_from_assignment(kp['jets'], assign_all, kp['hl']['met'], kp['met_phi'])
     for k, v in rec.items(): kp['hl'][k] = v
-    k3 = kp['kappa3_value'].astype(np.float64); nbt = kp['n_btag_total']
+    k3 = kp['kappa3_value'].astype(np.float64)
     k_lo = float(cfg['ml_usage']['ml2']['kappa_low'])
     k_hi = float(cfg['ml_usage']['ml2']['kappa_high'])
     m_lo = np.abs(k3 - k_lo) < KAPPA_MATCH_TOL
@@ -122,7 +122,7 @@ def main():
             tf.keras.backend.clear_session(); del m
             raise optuna.TrialPruned(f'n_params={n_pars:,} × {safety_fac} > N_train={N_train:,}')
         # weighted_metrics so val_auc matches the sample_weighted loss
-        #.  See 04a for the full rationale.
+        # See 04a for the full rationale.
         m.compile(optimizer=optimizers.AdamW(learning_rate=hp['lr'], weight_decay=hp['wd']),
                   loss='binary_crossentropy',
                   weighted_metrics=[metrics.AUC(name='auc')])
@@ -155,7 +155,8 @@ def main():
     if not completed:
         sys.exit(f'No ML2 trial completed; relax safety_factor (={safety_fac}) or HP space.')
 
-    # Reconstruct processed hp (with ffn_dim, not the raw ffn_mult). See E-1.
+    # Reconstruct the processed hp (ffn_dim = d_token * ffn_mult); study.best_params
+    # holds only the raw suggested params, and build_tunable_model reads ffn_dim.
     best_hp = sample_hp(study.best_trial)
     out = os.path.join(cfg['models_dir'], 'ml2_best.json')
     with open(out, 'w') as f:

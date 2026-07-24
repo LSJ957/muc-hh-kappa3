@@ -16,10 +16,8 @@ HDF5 schema (per file produced by 01_extract_features.py):
   /hl/<col>          — 45 HL features + Event_ID, target_sigbg, target_everytype,
                         kappa3_value, met_phi (gzip compressed)
   /ll_cloud          — (N, 40, 4) particle cloud [pT_frac, Δη, Δφ, type]
-                       (no mask channel — padded slots are all-zero;
-                       boosted analysis's no-mask convention; padded slots
-                       are zero-vectors (0,0,0,0) and handled by the
-                       network as such)
+                       (no mask channel — padded slots are zero-vectors
+                       (0,0,0,0), handled by the network as such)
   /jets              — (N, 4, 10) jet features [pT, η, φ, mass, btag_wp70,
                         NCharged, NNeutrals, ChargedEFrac, PTD, MeanSqDeltaR]
   /truth_pairing     — (N,) int8: correct pairing index (0,1,2) or -1 if unmatched
@@ -39,9 +37,9 @@ from . import physics_constants as _pc
 # ═════════════════════════════════════════════════════════════════════════
 # 0.  CONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════
-# Path/sample-list constants from the legacy stand-alone runner were removed
+# Path/sample-list constants from the legacy stand-alone runner were removed;
 # they referenced machine-specific paths and are not part of this release.
-# table.  This module is now only imported as a library (process_one_root /
+# This module is now only imported as a library (process_one_root /
 # save_h5); all paths/x-sections live in `config/<stage>.yaml` and
 # `physics_constants.py`.
 
@@ -164,7 +162,6 @@ def compute_tda_single(event_data):
     if len(eta) < 3:
         return 0.0, 0.0, 0.0, 0.0, 0.0
 
-    n = len(eta)
     deta = eta[:, None] - eta[None, :]
     dphi = phi[:, None] - phi[None, :]
     dphi_cyl = 2.0 * np.sin(dphi / 2.0)

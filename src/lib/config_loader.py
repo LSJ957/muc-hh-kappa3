@@ -31,10 +31,10 @@ inputs:                              # named input registry
     target_sigbg:    1 | 0 | per-file list  # signal=1, bg=0
     target_everytype: 0..7 | per-file list  # subprocess id
     is_signal: bool | per-file list
-    n_gen_per_process: int           # OPTIONAL: generated events per process
-                                     # (weight normalisation; default in
-                                     # physics_constants)
-    n_gen_per_kappa: int             # OPTIONAL: generated events per κ slice
+    n_gen_per_process: int           # generated events per process
+                                     # (weight normalisation)
+    n_gen_per_kappa: int             # generated events per κ slice
+                                     # (one of these two is required per input)
 
 ml_usage:
   ml1:

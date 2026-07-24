@@ -24,6 +24,10 @@ from lib.config_loader import load_config, resolve_paths
 from lib.weights import sigbg_weights
 from lib.physics_constants import KAPPA_MATCH_TOL
 
+# These panels read the high-level quantities straight from the h5, so the
+# pairing-dependent ones (mHH, dR_H1H2) reflect the X_HH pairing applied at
+# extraction, not the SPANet re-pairing used for the classifiers. This is an
+# illustrative selection-level figure; 10_plot_scores.py re-pairs via SPANet.
 PANELS = [
     ('H_0',     r'$H_0$',             lambda f: f['hl/H_0'][:]),
     ('mHH',     r'$m_{HH}$  [GeV]',   lambda f: f['hl/mHH'][:]),
@@ -36,7 +40,7 @@ BG_LABELS = {
     'hqqvv': r'$Hq\bar q\,\nu\bar\nu$', 'wwvv': r'$W^+W^-\nu\bar\nu$',
     'zzvv':  r'$ZZ\,\nu\bar\nu$',       'ttvv': r'$t\bar t\,\nu\bar\nu$',
     'ww':    r'$W^+W^-$',               'zz':   r'$ZZ$',
-    'tt':    r'$t\bar t$',              'hzvv': r'$HZ\,\nu\bar\nu$',
+    'tt':    r'$t\bar t$',
 }
 
 

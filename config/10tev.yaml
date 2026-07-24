@@ -71,7 +71,7 @@ inputs:
     target_everytype: [0,   1,    2,    3,    4,    5,    6,    7]
     is_signal:        [true, false, false, false, false, false, false, false]
 
-  # ALL κ-scan files at k₂V=1 (main 17 + extras)
+  # κ-scan : the 17-point paper grid at κ₂V=1
   kappa_scan_main:
     h5: data/10tev/kappa_scan_main.h5
     n_gen_per_kappa: 100000
@@ -162,7 +162,7 @@ dll:
 # Optuna HP-search settings.  Re-tuning is driven by `bash run_all.sh --retune-spanet`
 # and `bash run_all.sh --retune-ml` (and the 02a / 04a / 05a scripts directly), not by
 # any yaml flag.  `from_best` is a fallback path used only when no local
-# `models/<stage>/{ml1,ml2}_best.json` exists — leave it as the relative
+# `models/<stage>/{ml1,ml2}_best.json` exists — leave the `__none__`
 # sentinel below; the active pipeline writes a local best.json from Optuna or
 # the user passes `--from-best`.
 optuna:

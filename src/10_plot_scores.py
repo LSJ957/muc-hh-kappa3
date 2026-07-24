@@ -44,7 +44,7 @@ BG_LABELS = {
     'hqqvv': r'$Hq\bar q\,\nu\bar\nu$', 'wwvv': r'$W^+W^-\nu\bar\nu$',
     'zzvv':  r'$ZZ\,\nu\bar\nu$',       'ttvv': r'$t\bar t\,\nu\bar\nu$',
     'ww':    r'$W^+W^-$',               'zz':   r'$ZZ$',
-    'tt':    r'$t\bar t$',              'hzvv': r'$HZ\,\nu\bar\nu$',
+    'tt':    r'$t\bar t$',
 }
 
 

@@ -74,7 +74,7 @@ export HHML_CONDA_LIB=/path/to/your/miniconda3/envs/<env>/lib
 export HHML_DATA_ROOT=/path/to/your/root_files
 ```
 
-If `HHML_CONDA_LIB` is unset, each step prints a warning and runs with the
+If `HHML_CONDA_LIB` is unset, each GPU step prints a warning and runs with the
 system library path (fine if your TF/Torch install is self-contained).
 If `HHML_DATA_ROOT` is unset, step 01 fails fast with a clear
 "file not found" naming the offending path.
@@ -123,7 +123,7 @@ endpoints or background list propagates automatically):
 | `08_dll_plots.py` | −ΔlnL(κ₃) scan + poly4 fit + 68/95% CL bands; log₁₀(S/B) template map | `dll/<stage>/fig_dll_curve.png`, `fig_logSB.png` |
 | `09_plot_kinematics.py` | kinematic distributions, κ₃ slices vs weighted background (`--split-bg`: per-process colour stack) | `analysis/<stage>/fig_kinematics.png` |
 | `10_plot_scores.py` | D_HH / D_κ3 score distributions (`--split-bg`: per-process colour stack) | `analysis/<stage>/fig_scores.png` |
-| `11_plot_shap.py` | SHAP beeswarm for both classifiers (needs `pip install shap`) | `analysis/<stage>/fig_shap.png` |
+| `11_plot_shap.py` | SHAP beeswarm for both classifiers | `analysis/<stage>/fig_shap.png` |
 
 ## Key design choices
 

@@ -117,7 +117,7 @@ def main():
     m = MA.build_tunable_model(jet_attn=True, hp=hp, seed=seed,
                                n_globals=n_globals, higgs_dim=7)
     # weighted_metrics keeps val_auc aligned with the sample_weighted loss
-    #.  Same rationale as 04_train_ml1.
+    # Same rationale as 04_train_ml1.
     m.compile(optimizer=optimizers.AdamW(learning_rate=float(hp['lr']),
                                           weight_decay=float(hp['wd'])),
               loss='binary_crossentropy',
