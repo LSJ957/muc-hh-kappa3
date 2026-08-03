@@ -24,15 +24,18 @@ def render_dll(npz_path, out_path, stage_label, color):
     w68 = float(R['w68'])
     fwin = R['fit_window']
 
-    # Display curve anchored at κ3=1 so it passes through the scan points.
-    # The CL bands come from 07's fitted-minimum convention, so the curve's
-    # crossings of the 0.5/1.92 dotted lines can differ from the band edges
-    # by the (small) offset poly(κ=1) − poly_min; printed below for the
-    # record.  For the shipped fits the offset is ≲0.01 in −ΔlnL.
+    # Display curve anchored at κ3=1 so it passes through the scan points
+    # (same convention as the paper figure).  The CL bands come from 07's
+    # fitted-minimum convention, so the curve's crossings of the 0.5/1.92
+    # dotted lines can differ from the band edges by the (small) offset
+    # poly(κ=1) − poly_min; printed below for the record.  For the shipped
+    # fits the offset is ≲0.01 in −ΔlnL.  No clipping at 0: a clip would
+    # paint an artificial flat floor of width ∝ the offset around the
+    # minimum whenever poly(1) > poly_min.
     kfin_lo = fwin[0] if fwin.size else fit_grid.min()
     kfin_hi = fwin[1] if fwin.size else fit_grid.max()
     kf = np.linspace(kfin_lo, kfin_hi, 2001)
-    sh = np.maximum(np.polyval(coef, kf) - np.polyval(coef, 1.0), 0.0)
+    sh = np.polyval(coef, kf) - np.polyval(coef, 1.0)
     _off = float(np.polyval(coef, 1.0) - np.polyval(coef, kf).min())
     print(f'  [{stage_label}] display-anchor offset poly(1)-poly_min = {_off:+.4f}')
 
@@ -49,9 +52,16 @@ def render_dll(npz_path, out_path, stage_label, color):
     a.set_xlim(fit_grid.min(), fit_grid.max()); a.set_ylim(-0.1, 3.0)
     a.set_xlabel(r'$\kappa_3 = \lambda_3/\lambda_3^{\rm SM}$')
     a.set_ylabel(r'$-\Delta\ln L$')
-    a.text(0.97, 0.96, rf'$w_{{68}}={w68:.2f}$' + '\n' + rf'$[{lo68:.2f},\,{hi68:.2f}]$',
+    # Flag intervals whose connected region reaches the fitted-range edge:
+    # the printed width is then only a LOWER BOUND (open interval).
+    _open68 = bool(R['w68_open']) if 'w68_open' in R.files else False
+    _mark = r'$^{\,\rm open}$' if _open68 else ''
+    a.text(0.97, 0.96, rf'$w_{{68}}={w68:.2f}${_mark}' + '\n' + rf'$[{lo68:.2f},\,{hi68:.2f}]$',
            transform=a.transAxes, ha='right', va='top', fontsize=10,
            bbox=dict(boxstyle='round', fc='white', ec=color, lw=0.8))
+    if _open68:
+        print(f'  [{stage_label}] WARNING: 68% interval reaches the fitted range edge '
+              f'(open on that side) — the shaded band understates the true interval')
     a.text(0.03, 0.96, f'Muon Collider Simulation\n√s = {stage_label}\nresolved',
            transform=a.transAxes, ha='left', va='top', fontsize=9, linespacing=1.5)
     a.legend(loc='lower center', fontsize=9, framealpha=0.92)

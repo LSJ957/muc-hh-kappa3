@@ -139,6 +139,14 @@ endpoints or background list propagates automatically):
 | `10_plot_scores.py` | D_HH / D_κ3 score distributions (`--split-bg`: per-process colour stack) | `analysis/<stage>/fig_scores.png` |
 | `11_plot_shap.py` | SHAP beeswarm for both classifiers | `analysis/<stage>/fig_shap.png` |
 
+`run_all.sh` stops at step 08; the remaining figures are produced directly:
+
+```bash
+for s in 09_plot_kinematics 10_plot_scores 11_plot_shap; do
+    python3 src/${s}.py --config config/3tev.yaml     # and config/10tev.yaml
+done
+```
+
 ## Key design choices
 
 * **Six transformed jet features** for SPANet
@@ -156,6 +164,17 @@ endpoints or background list propagates automatically):
 * **Leak-free likelihood protocol**: the κ₃ = 1 Asimov anchor is taken from an
   *independent* Monte-Carlo sample (`kappa_indep`; configurable in `dll.anchor`),
   so −ΔlnL(κ₃ = 1) is not artificially forced to 0 by self-comparison.
+
+* **SPANet folds — what is and is not held out**: the pairing network uses an
+  85/15 train/val split of `sigbg_main` and has **no test fold of its own**
+  (it is an upstream feature-builder, not a quoted classifier).  The κ₃
+  templates and the κ₃ = 1 anchor of the likelihood come from samples
+  (`kappa_scan_*`, `kappa_indep`) SPANet never trained on, so the extracted
+  intervals are unaffected.  Conversely, the events on which the `D_HH`
+  score distributions are evaluated (ML1's test fold) largely overlap
+  SPANet's training fold on the signal side, so the SPANet-derived inputs
+  (`m_H1`, `m_H2`, `X_HH`, …) are in-sample there and the displayed
+  `D_HH` separation is mildly optimistic.
 
 * **CL extraction**: the per-κ₃ Asimov −ΔlnL scan is shifted by its κ₃ = 1
   value (a display convention; the constant shift does not change the
@@ -198,10 +217,10 @@ git-ignored.
 5. final −ΔlnL(κ₃) plot at `dll/<stage>/fig_dll_curve.png`; per-κ₃ table at
    `dll/<stage>/dll_per_kappa.md`
 
-To reproduce the paper's 10 TeV intervals exactly, uncomment the
-`dll.fit_window: [0.8, 1.2]` line in `config/10tev.yaml` (the paper
-restricts the polynomial fit to the refined grid around the likelihood
-well; the default here fits the full scan range).
+The shipped `config/10tev.yaml` already restricts the polynomial fit to the
+paper's `dll.fit_window: [0.8, 1.2]` (the refined grid around the likelihood
+well), so the default run reproduces the paper's 10 TeV intervals; comment
+the line out to fit the full scan range instead.
 
 A note on reproducibility: given fixed trained networks, the likelihood scan
 and CL extraction (steps 07 and 08) are deterministic. The network trainings themselves (steps 02, 04,

@@ -151,10 +151,12 @@ dll:
   # refined second → high-stat templates on the 0.04-spaced grid near κ=1
   # main last → fallback for κ values not covered by the above
   template_sources:  [kappa_indep, kappa_scan_refined, kappa_scan_main]
-  # OPTIONAL: restrict the fourth-order polynomial fit to a κ3 sub-range
-  # (points outside are still scanned and plotted).  Default: fit the full
-  # fit_kappa_grid.
-  # fit_window: [0.8, 1.2]
+  # Restrict the fourth-order polynomial fit to a κ3 sub-range (points
+  # outside are still scanned and plotted).  [0.8, 1.2] is the PAPER setting
+  # at 10 TeV: the likelihood rises to −ΔlnL ≈ O(100) at the grid edges and
+  # an unwindowed quartic would let those points distort the trough that
+  # sets the CL intervals.  Comment out to fit the full fit_kappa_grid.
+  fit_window: [0.8, 1.2]
   anchor:
     source: kappa_indep
     kappa:  1.0

@@ -80,6 +80,35 @@ def extract_one_root(root_path, cache_file, label_sigbg, label_everytype, kappa3
     )
     if res is None or len(res['hl_dict'][list(res['hl_dict'])[0]]) == 0:
         raise RuntimeError(f'no events survived cuts: {root_path}')
+    st = res['stats']
+
+    # ── silent-failure guards (each of these degrades the analysis without
+    #    crashing anything downstream, so fail here instead) ──
+    # (1) b-tag decoding: a Delphes card that stores the working point on a
+    #     different bit than extract_engine.BTAG_BIT decodes every jet to 0.
+    _btag_rate = float(res['jets_array'][:, :, 4].mean())
+    if len(res['jets_array']) >= 1000 and _btag_rate == 0.0:
+        raise RuntimeError(
+            f'{root_path}: every jet decodes to b-tag=0 — check BTAG_BIT '
+            f'against the BTag bit layout of the Delphes card')
+    # (2) truth matching: a generator whose Higgs record does not satisfy the
+    #     exactly-two-PID-25 convention yields ~0% matches and SPANet would
+    #     have nothing to train on.  (Shipped samples sit at ~24-38%.)
+    if is_signal:
+        _tm_rate = st['n_truth_matched'] / max(st['n_final'], 1)
+        if st['n_final'] >= 1000 and _tm_rate < 0.05:
+            raise RuntimeError(
+                f'{root_path}: truth-match rate {100*_tm_rate:.2f}% — the '
+                f'generator record does not meet the truth_match_event '
+                f'conventions (exactly two PID==25 with valid daughters)')
+    # (3) particle cloud: constituent matching relies on fUniqueID identity
+    #     between the jet constituents and the EFlow collections; a card that
+    #     clusters from a different collection leaves the cloud all-zero.
+    if len(res['ll_cloud']) >= 1000 and not res['ll_cloud'].any():
+        raise RuntimeError(
+            f'{root_path}: ll_cloud is entirely zero — jet-constituent '
+            f'fUniqueID matching against the EFlow branches failed')
+
     hl = pd.DataFrame(res['hl_dict'])
     np.savez_compressed(
         cache_file,
@@ -91,9 +120,11 @@ def extract_one_root(root_path, cache_file, label_sigbg, label_everytype, kappa3
         truth_valid   = res['truth_valid'].astype(bool),
         truth_match_dr= res['truth_match_dr'].astype(np.float32),
         source_root   = np.array(os.path.basename(root_path)),
+        n_total_source= np.int64(st['n_total']),
     )
     n = len(hl); nv = int(res['truth_valid'].sum())
-    log(f'      → N={n:,}  truth_valid={nv:,}  ({100*nv/max(n,1):.1f}%)  cached')
+    log(f'      → N={n:,}  truth_valid={nv:,}  ({100*nv/max(n,1):.1f}%)  '
+        f'n_total={st["n_total"]:,}  btag_rate={_btag_rate:.3f}  cached')
 
 
 def combine_input(input_name, spec, cache_dir, stage, sqrts_TeV,
@@ -104,10 +135,12 @@ def combine_input(input_name, spec, cache_dir, stage, sqrts_TeV,
         return
     roots = spec['roots']
     hls, lls, jts, tps, tvs, tdrs, src = [], [], [], [], [], [], []
+    n_tot_src = []
     cols = None
     for ri, _ in enumerate(roots):
         cf = cache_path(cache_dir, input_name, ri)
         d = np.load(cf, allow_pickle=True)
+        n_tot_src.append(int(d['n_total_source']) if 'n_total_source' in d.files else -1)
         cols = list(d['hl_cols'])
         hl_i = pd.DataFrame(d['hl_vals'], columns=cols)
         # Labels (κ3 / process ids) were baked into the cache when it was
@@ -136,6 +169,25 @@ def combine_input(input_name, spec, cache_dir, stage, sqrts_TeV,
     hl_c = pd.concat(hls, ignore_index=True)
     ll_c = np.concatenate(lls); jt_c = np.concatenate(jts)
     tp_c = np.concatenate(tps); tv_c = np.concatenate(tvs); tdr_c = np.concatenate(tdrs)
+
+    # ── n_gen cross-check: the config N_gen divides every physics weight, so
+    #    a generation job that died partway (or a stale config value) shifts
+    #    every yield and the likelihood linearly — and nothing downstream
+    #    would notice.  Each root holds exactly one process / κ slice, so its
+    #    total generated entries must equal the configured N_gen.
+    _ngen = spec.get('n_gen_per_process', spec.get('n_gen_per_kappa'))
+    if _ngen is not None and all(t >= 0 for t in n_tot_src):
+        for ri, t in enumerate(n_tot_src):
+            if t != int(_ngen):
+                raise RuntimeError(
+                    f'{input_name} root #{ri} ({os.path.basename(roots[ri])}): source file '
+                    f'holds {t:,} generated events but the config declares N_gen={int(_ngen):,} '
+                    f'— weights would be mis-normalised by ×{int(_ngen)/max(t,1):.4f}; '
+                    f'fix the config (or regenerate the sample)')
+        log(f'  n_gen cross-check: every root matches N_gen={int(_ngen):,} ✓')
+    elif _ngen is not None:
+        log('  n_gen cross-check skipped (legacy cache without n_total_source — '
+            're-extract with --force to enable it)')
     meta = {
         'dataset':       input_name,
         'stage':         stage,

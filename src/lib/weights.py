@@ -75,6 +75,15 @@ def sigbg_weights(
             br = pc.BR_HBB if v.get('apply_br_hbb', False) else 1.0
             w[proc_mask] = float(v['xsec_pb']) * br * 1000.0 * lumi / N_gen_bkg[pid]
 
+    # A background event whose target_everytype is missing from
+    # phys['backgrounds'] would keep w = 0 and silently vanish from every
+    # yield and from the likelihood's background B — fail loud instead.
+    _unmapped = bkg_mask & (w == 0.0)
+    if _unmapped.any():
+        bad = np.unique(target_everytype[_unmapped]).tolist()
+        raise ValueError(
+            f'{int(_unmapped.sum())} background events carry process ids {bad} '
+            f'absent from phys["backgrounds"] — they would silently drop out of B')
     assert (w >= 0).all(), 'sigbg_weights produced negative weight'
     return w
 

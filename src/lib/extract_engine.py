@@ -17,7 +17,11 @@ HDF5 schema (per file produced by 01_extract_features.py):
                         kappa3_value, met_phi (gzip compressed)
   /ll_cloud          — (N, 40, 4) particle cloud [pT_frac, Δη, Δφ, type]
                        (no mask channel — padded slots are zero-vectors
-                       (0,0,0,0), handled by the network as such)
+                       (0,0,0,0).  NOTE: the downstream transformer applies
+                       no key-padding mask, so pad slots DO participate in
+                       attention and pooling; the network can only learn to
+                       down-weight them, it does not ignore them by
+                       construction)
   /jets              — (N, 4, 10) jet features [pT, η, φ, mass, btag_wp70,
                         NCharged, NNeutrals, ChargedEFrac, PTD, MeanSqDeltaR]
   /truth_pairing     — (N,) int8: correct pairing index (0,1,2) or -1 if unmatched
@@ -367,6 +371,19 @@ def process_one_root(root_path, label_sigbg, label_everytype,
     arr = arrays[basic_mask]
     n_basic = len(arr)
 
+    # The [:, :4] reads below assume the jet collection holds EXACTLY 4 jets
+    # per selected event (Exclusive-4 clustering).  If a different Delphes
+    # card produces inclusive jets, `sum(j_mask)==4` could select events with
+    # >4 jets and the [:, :4] slice would silently mix in jets that failed
+    # the kinematic cut — enforce the assumption instead.
+    if n_basic:
+        _njet = ak.to_numpy(ak.num(arr[f"{JET_BRANCH}.PT"]))
+        if not (_njet == 4).all():
+            raise RuntimeError(
+                f'{root_path}: selected events must hold exactly 4 jets '
+                f'(Exclusive-4 clustering); found jet counts '
+                f'{np.unique(_njet).tolist()}')
+
     # ─── Jet 4-momenta ───
     j_pt   = ak.to_numpy(arr[f"{JET_BRANCH}.PT"][:, :4])
     j_eta  = ak.to_numpy(arr[f"{JET_BRANCH}.Eta"][:, :4])
@@ -388,12 +405,15 @@ def process_one_root(root_path, label_sigbg, label_everytype,
     j_E  = np.sqrt(j_mass**2 + j_px**2 + j_py**2 + j_pz**2)
 
     # ─── XHH Higgs reconstruction ───
-    # ATLAS arXiv:2202.07288 resolved-channel definition:
     #   X_HH = sqrt( ((m_H1 - 120)/(0.1 m_H1))^2 + ((m_H2 - 110)/(0.1 m_H2))^2 )
-    # The centres (120, 110) GeV are asymmetric between the two Higgs
-    # candidates; H_1 / H_2 are pT-sorted (H_1 = leading p_T) before applying
-    # the formula. We adopt the ATLAS resolved convention to harmonise with
-    # the two-boosted-jet companion analysis.
+    # Functional form as in the ATLAS resolved HH→4b analyses (10% mass
+    # resolutions); the centre values (120, 110) GeV follow the earlier
+    # ATLAS tuning (arXiv:1804.06174) — the later ATLAS paper
+    # (arXiv:2202.07288) re-centres the same variable at (124, 117).
+    # The centres are asymmetric between the two candidates; H_1 / H_2 are
+    # pT-sorted (H_1 = leading p_T) before applying the formula.  The
+    # companion boosted analysis evaluates the same form with fat-jet
+    # masses and centres (124, 115).
     M_H1_CENTER = 120.0
     M_H2_CENTER = 110.0
     EPS_M       = 1e-3        # guards 0.1·m → 0
@@ -663,8 +683,11 @@ def process_one_root(root_path, label_sigbg, label_everytype,
             ll_cloud[ev_i, offset:offset+n_c, 3] = c_type
             # NOTE: previous 5th channel (mask flag = 1.0) dropped to align
             # with the boosted analysis's no-mask convention. Padded slots
-            # remain zero-vectors (0,0,0,0) — the network treats them as
-            # implicit zero contribution.
+            # remain zero-vectors (0,0,0,0).  Since the downstream
+            # transformer applies no key-padding mask, pad slots still pass
+            # through Dense/LayerNorm/attention and enter the average
+            # pooling — the trained network learns to down-weight them
+            # rather than ignoring them by construction.
 
         if (ev_i + 1) % 50000 == 0:
             print(f"      LL: {ev_i+1}/{n_final} events", flush=True)

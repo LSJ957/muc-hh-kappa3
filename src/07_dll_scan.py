@@ -120,12 +120,14 @@ def main():
     # used (saved in ml1_scores.npz).  If the split recipe in 04 ever drifts,
     # B would silently include ML1 training events — fail loud instead.
     _ml1_scores_p = os.path.join(cfg['models_dir'], 'ml1_scores.npz')
-    if os.path.exists(_ml1_scores_p):
-        _saved = np.load(_ml1_scores_p)['idx_test']
-        if not np.array_equal(np.sort(_saved), np.sort(sp['idx_test'])):
-            sys.exit('ML1 test-fold reconstruction disagrees with ml1_scores.npz idx_test — '
-                     'the 04/07 split recipes have drifted; fix before trusting B')
-        log('  ML1 test-fold cross-check vs ml1_scores.npz: OK')
+    if not os.path.exists(_ml1_scores_p):
+        sys.exit('ml1_scores.npz not found — run 04 before 07 (its saved idx_test is '
+                 'the only proof the reconstructed ML1 test fold matches training)')
+    _saved = np.load(_ml1_scores_p)['idx_test']
+    if not np.array_equal(np.sort(_saved), np.sort(sp['idx_test'])):
+        sys.exit('ML1 test-fold reconstruction disagrees with ml1_scores.npz idx_test — '
+                 'the 04/07 split recipes have drifted; fix before trusting B')
+    log('  ML1 test-fold cross-check vs ml1_scores.npz: OK')
     test_mask = np.zeros(sb['N'], dtype=bool); test_mask[sp['idx_test']] = True
     resc = sb['N'] / max(int(test_mask.sum()), 1)            # test-fold rescale (~6.67)
     _sigbg_in = cfg['ml_usage']['ml1']['sigbg'][0]
@@ -224,12 +226,14 @@ def main():
     # used (saved in ml2_scores.npz); recipe drift between 05 and this
     # reconstruction would silently re-open the template leakage.
     _ml2_scores_p = os.path.join(cfg['models_dir'], 'ml2_scores.npz')
-    if os.path.exists(_ml2_scores_p):
-        _saved = np.load(_ml2_scores_p)['idx_test']
-        if not np.array_equal(np.sort(_saved), np.sort(test_rows_concat)):
-            sys.exit('ML2 test-fold reconstruction disagrees with ml2_scores.npz idx_test — '
-                     'the 05/07 pool recipes have drifted; fix before trusting templates')
-        log('  ML2 test-fold cross-check vs ml2_scores.npz: OK')
+    if not os.path.exists(_ml2_scores_p):
+        sys.exit('ml2_scores.npz not found — run 05 before 07 (its saved idx_test is '
+                 'the only proof the reconstructed ML2 test fold matches training)')
+    _saved = np.load(_ml2_scores_p)['idx_test']
+    if not np.array_equal(np.sort(_saved), np.sort(test_rows_concat)):
+        sys.exit('ML2 test-fold reconstruction disagrees with ml2_scores.npz idx_test — '
+                 'the 05/07 pool recipes have drifted; fix before trusting templates')
+    log('  ML2 test-fold cross-check vs ml2_scores.npz: OK')
 
     # ── 5) Raw per-κ DLL scan on fit_kappa_grid ──
     def _canon(k):
@@ -254,13 +258,17 @@ def main():
             m_test = m & per_src_test_mask[src]
             n_test = int(m_test.sum())
             if n_test < 100:
-                log(f'    ⚠️  κ={kf:.3f} src={src}: only {n_test} ML2 test events; '
-                    f'falling back to the full pool (template retains a small leak)')
-            else:
-                # test fold is a uniform random subsample of the κ slice →
-                # scaling it to the full-slice yield is unbiased
-                leak_resc = n_full / n_test    # ≈ 6.7 (test fold ≈ 15%)
-                m = m_test
+                # Fail closed: evaluating ML2 on its own training events would
+                # sharpen this scan point artificially, so drop the template
+                # (the κ point is skipped) rather than accept the leak.
+                log(f'    ⚠️  κ={kf:.3f} src={src}: only {n_test} ML2 test events — '
+                    f'dropping this template instead of falling back to the '
+                    f'(ML2-training-contaminated) full pool')
+                return None
+            # test fold is a uniform random subsample of the κ slice →
+            # scaling it to the full-slice yield is unbiased
+            leak_resc = n_full / n_test    # ≈ 6.7 (test fold ≈ 15%)
+            m = m_test
         if int(m.sum()) < 100:
             return None
         w_evt = _kappa_w_evt(KXS[kf], src_ngen[src],
@@ -281,15 +289,28 @@ def main():
 
     fit_grid = np.array(cfg['dll']['fit_kappa_grid'], dtype=float)
     raw_vals = np.full(len(fit_grid), np.nan)
+    # Empty-μ-bin diagnostic: a bin with μ = template+B = 0 but n = nA+B > 0
+    # hits the DLL_EPS floor inside asimov_dll, and a single such bin
+    # contributes n·ln(n/eps) ≈ 27·n — enough to dominate the whole scan.
+    # With quantile d2 binning on the background every bin normally holds
+    # background weight, so this count should be 0 at every κ; a non-zero
+    # value means the poly4 fit cannot be trusted at that κ.
+    empty_mu_bins = np.zeros(len(fit_grid), dtype=np.int64)
     S_k1 = None
     for ki, k in enumerate(fit_grid):
         h = template(k)
         if h is None:
             log(f'    κ={k}: no template available → skip')
             continue
+        empty_mu_bins[ki] = int(np.sum(((h + B) <= 0.0) & ((nA_anchor + B) > 0.0)))
+        if empty_mu_bins[ki]:
+            log(f'    ⚠️  κ={k}: {empty_mu_bins[ki]} bins with μ=template+B empty but '
+                f'reference n>0 — the eps floor engages; this scan point is unreliable')
         raw_vals[ki] = float(asimov_dll(nA_anchor + B, h + B))
         if abs(float(k) - 1.0) < KAPPA_MATCH_TOL:
             S_k1 = h
+    log(f'  empty-μ-bin diagnostic: max over κ = {int(empty_mu_bins.max())} '
+        f'(0 = the DLL_EPS floor never engages anywhere in the scan)')
 
     # ── 6) Shift at κ3=1 + fourth-order polynomial fit + CL intervals ──
     i_k1 = int(np.argmin(np.abs(fit_grid - 1.0)))
@@ -325,6 +346,7 @@ def main():
              stage=stage, e1=e1, e2=e2, B=B, nA_anchor=nA_anchor,
              S_k1=(S_k1 if S_k1 is not None else np.full_like(B, np.nan)),
              fit_grid=fit_grid, raw_vals=raw_vals, raw_shifted=raw_shifted,
+             empty_mu_bins=empty_mu_bins,
              k1_raw=k1_raw, fit_window=(np.array(fwin, dtype=float) if fwin else np.array([])),
              poly_coef=coef,
              w68=res['w68_connected'], w68_lo=res['k3_lo'], w68_hi=res['k3_hi'],
@@ -341,6 +363,7 @@ def main():
         if fwin:
             f.write(f'polynomial fit window: κ3 ∈ [{fwin[0]}, {fwin[1]}]\n')
         f.write(f'\n**68% CL: {res["k3_lo"]:.3f} < κ3 < {res["k3_hi"]:.3f}**'
+                f'{"  (interval reaches the fitted range edge → open on that side)" if res["touches_boundary"] else ""}'
                 f'   (w68 = {res["w68_connected"]:.4f})\n')
         f.write(f'**95% CL: {lo95:.3f} < κ3 < {hi95:.3f}**'
                 f'{"  (interval reaches the fitted range edge → open on that side)" if open95 else ""}'
