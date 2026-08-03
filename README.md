@@ -248,3 +248,8 @@ If you use this code, please cite the accompanying paper:
 
 The eprint number is a placeholder until the preprint is posted; the citation
 key, DOI and journal reference will follow the INSPIRE-HEP entry.
+
+## Acknowledgements
+
+Parts of this codebase were developed and reviewed with the assistance of
+Claude (Anthropic).
