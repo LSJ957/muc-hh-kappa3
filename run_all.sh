@@ -4,7 +4,7 @@
 # analysis/<stage>, dll/<stage>.  Re-running skips finished steps unless flagged.
 set -eo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-STAGE=${1:?usage: bash run_all.sh {3tev|10tev}  [--retune-spanet] [--no-retune-spanet] [--retune-ml] [--skip-extract] [--force-extract]}
+STAGE=${1:?"usage: bash run_all.sh {3tev|10tev}  [--retune-spanet] [--no-retune-spanet] [--retune-ml] [--skip-extract] [--force-extract]"}
 shift || true
 
 case "$STAGE" in
