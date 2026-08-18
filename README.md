@@ -244,5 +244,4 @@ INSPIRE-HEP entry appears.
 
 ## Acknowledgements
 
-Parts of this codebase were developed and reviewed with the assistance of
-Claude (Anthropic).
+Claude (Anthropic) was used to assist with debugging, refactoring, and documenting parts of this codebase.
