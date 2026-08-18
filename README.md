@@ -228,14 +228,14 @@ training with five different random seeds moved the 68% CL width by about
 If you use this code, please cite the accompanying paper:
 
 ```bibtex
-@misc{cheung2026measuringtrilinearhiggsselfcoupling,
-      title={Measuring the trilinear Higgs self-coupling in Higgs boson pair production at multi-TeV muon colliders},
-      author={Kingman Cheung and Jae Sik Lee and Soojin Lee and Chen Wang},
-      year={2026},
-      eprint={2608.01888},
-      archivePrefix={arXiv},
-      primaryClass={hep-ph},
-      url={https://arxiv.org/abs/2608.01888},
+@article{Cheung:2026vdk,
+    author = "Cheung, Kingman and Lee, Jae Sik and Lee, Soojin and Wang, Chen",
+    title = "{Measuring the trilinear Higgs self-coupling in Higgs boson pair production at multi-TeV muon colliders}",
+    eprint = "2608.01888",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    month = "8",
+    year = "2026"
 }
 ```
 
