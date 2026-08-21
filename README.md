@@ -2,7 +2,7 @@
 
 End-to-end analysis code for the di-Higgs trilinear-coupling measurement at a
 **3 TeV (1 ab⁻¹)** and **10 TeV (10 ab⁻¹)** muon collider, resolved 4-jet channel
-(μ⁺μ⁻ → HH νν̄ / HH μ⁺μ⁻ → bb̄bb̄ + invisible). The **same code** drives both
+(μ⁺μ⁻ → HH νν̄ / HH μ⁺μ⁻ → bb̄bb̄ + invisible). The same code drives both
 centre-of-mass energies — only the YAML config differs.
 
 ```
@@ -17,7 +17,7 @@ This repository accompanies
 > [arXiv:2608.01888](https://arxiv.org/abs/2608.01888).
 
 The paper covers both the resolved (4-jet) and the boosted (2 fat-jet)
-regions. This repository contains the **resolved-channel pipeline only**: feature
+regions. This repository contains the resolved-channel pipeline only: feature
 extraction (including topological-data-analysis descriptors), the SPANet-style
 jet→Higgs pairing network, the two event classifiers, and the binned
 likelihood scan in κ₃. The release covers the default analysis chain behind
@@ -42,8 +42,8 @@ the release.
 | 07  | `07_dll_scan.py`         | always | `dll/<stage>/dll_scan.npz` + `dll_per_kappa.md` |
 | 08  | `08_dll_plots.py`        | always | `dll/<stage>/fig_dll_curve.png`, `fig_logSB.png` |
 
-ML1 is the signal-vs-background classifier ($\mathcal{D}_{\rm HH}$ in the paper);
-ML2 is the κ₃ shape discriminator ($\mathcal{D}_{\kappa_3}$, trained binary
+ML1 is the signal-vs-background classifier ($D_{\rm HH}$ in the paper);
+ML2 is the κ₃ shape discriminator ($D_{\kappa_3}$, trained binary
 κ₃ = 0.4 vs 1.6).
 
 ## Input data
@@ -54,8 +54,8 @@ detector card), generated as described in the paper: the HH signal for a grid of
 κ₃ values plus the seven resolved-region SM background processes, at both 3 and
 10 TeV. The samples are not distributed with this repository (≈10⁶ events per
 process); they can be regenerated from the generator setup in the paper, or
-requested from the authors. Every input `.root` file is listed **explicitly by
-path** in `config/<stage>.yaml` — no filename parsing or auto-discovery — so the
+requested from the authors. Every input `.root` file is listed explicitly by
+path in `config/<stage>.yaml` — no filename parsing or auto-discovery — so the
 analysis is reproducible bit-for-bit from this repo + the samples. The file
 names in the `roots:` lists are examples reflecting our generation batches;
 point them at your own files (the `${data_root}` prefix is substituted from
@@ -172,8 +172,8 @@ done
 * **CL extraction**: the per-κ₃ Asimov −ΔlnL scan is shifted by its κ₃ = 1
   value (a display convention; the constant shift does not change the
   intervals) and fitted with a fourth-order polynomial; the 68 % (95 %) CL
-  interval is the connected region below 0.5 (1.92) **referenced to the
-  fitted minimum** → `src/lib/dll.py:poly4_w68`.  The fit spans the full
+  interval is the connected region below 0.5 (1.92) referenced to the
+  fitted minimum → `src/lib/dll.py:poly4_w68`.  The fit spans the full
   `dll.fit_kappa_grid` by default; an optional `dll.fit_window` restricts
   it to a κ₃ sub-range (points outside are still scanned and plotted).
 
